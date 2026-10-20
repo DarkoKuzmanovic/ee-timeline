@@ -1,6 +1,6 @@
 # EE Timeline
 
-A night-friendly podcast companion for listening to *Everything Everywhere Daily* in AP World History curriculum order. Follow the journey through nine eras, browse episodes on a compressed historical timeline, save progress, download stories for offline listening, and set a gentle sleep timer.
+A night-friendly podcast companion for listening to *Everything Everywhere Daily* in AP World History curriculum order. Follow the journey through nine eras, browse episodes on a compressed historical timeline, save progress, download stories for offline listening, plan tonight’s listening, and use bedtime mode with a sleep rewind, voice boost, and silence skipping.
 
 ## Build and install
 
@@ -25,6 +25,14 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - [Unit detail](docs/screenshots/unit-detail.png)
 - [Episode sheet](docs/screenshots/episode-sheet.png)
 - [Now Playing with sleep timer](docs/screenshots/now-playing.png)
+
+- [Bedtime player](docs/screenshots/bedtime-player.png)
+- [Bedtime settings](docs/screenshots/bedtime-settings.png)
+- [Bedtime audio settings](docs/screenshots/bedtime-settings-audio.png)
+- [Sleep-session rewind card](docs/screenshots/bedtime-drift-off.png)
+- [Sleep-session spot chooser](docs/screenshots/bedtime-sleep-session-sheet.png)
+- [Planned queue stop](docs/screenshots/bedtime-plan-stop.png)
+- [Bedtime player after shake extension](docs/screenshots/bedtime-player-shake.png)
 
 
 ## Curriculum data

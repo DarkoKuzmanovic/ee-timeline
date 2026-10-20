@@ -52,6 +52,9 @@ class SleepTimerController(private val mediaController: MediaController) {
     }
 
     fun cancel(): ListenableFuture<SessionResult> = send(SleepTimerProtocol.ACTION_CANCEL)
+    /** Adds ten minutes to the active timer and restores full volume if it was fading. */
+    fun extendTenMinutes(): ListenableFuture<SessionResult> =
+        JourneyPlaybackCommands.extendSleepTimer(mediaController)
 
 
     private fun send(action: String, args: Bundle = Bundle.EMPTY): ListenableFuture<SessionResult> =
