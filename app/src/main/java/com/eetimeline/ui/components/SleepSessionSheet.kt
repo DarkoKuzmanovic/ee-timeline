@@ -1,5 +1,6 @@
 package com.eetimeline.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,11 +15,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import com.eetimeline.core.Episode
 import com.eetimeline.core.SleepRewindPoint
 import com.eetimeline.playback.SleepSession
@@ -47,6 +52,7 @@ fun SleepSessionSheet(
     session: SleepSession,
     episodes: Map<String, Episode>,
     suggestedPoint: SleepRewindPoint,
+    accent: Color = Apricot,
     onDismiss: () -> Unit,
     onRewind: (SleepRewindPoint) -> Unit,
 ) {
@@ -74,7 +80,7 @@ fun SleepSessionSheet(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Choose the spot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Choose the spot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                 Text("Pick a moment from the stories you heard before the fade.", style = MaterialTheme.typography.bodyMedium, color = MutedCream)
             }
 
@@ -97,20 +103,21 @@ fun SleepSessionSheet(
                         },
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (active) MaterialTheme.colorScheme.surfaceVariant else SurfaceRaised,
+                            containerColor = if (active) accent.copy(alpha = 0.14f).compositeOver(SurfaceRaised) else SurfaceRaised,
                         ),
+                        border = if (active) BorderStroke(1.dp, accent.copy(alpha = 0.55f)) else null,
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(11.dp),
                         ) {
-                            Text(time, style = MaterialTheme.typography.labelMedium, color = Apricot, fontWeight = FontWeight.Bold)
+                            Text(time, style = MaterialTheme.typography.labelMedium, color = accent, fontWeight = FontWeight.Bold)
                             Column(Modifier.weight(1f)) {
-                                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(detail, style = MaterialTheme.typography.labelSmall, color = MutedCream)
                             }
-                            if (active) Text("●", color = Apricot)
+                            if (active) Text("●", color = accent)
                         }
                     }
                 }
@@ -126,10 +133,15 @@ fun SleepSessionSheet(
                     },
                     valueRange = 0f..1f,
                     enabled = selectedSegment.startPositionMs != selectedSegment.endPositionMs,
+                    colors = SliderDefaults.colors(
+                        thumbColor = accent,
+                        activeTrackColor = accent,
+                        inactiveTrackColor = accent.copy(alpha = 0.25f),
+                    ),
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(formatPosition(selectedSegment.startPositionMs), style = MaterialTheme.typography.labelSmall, color = MutedCream)
-                    Text("Rewind to ${formatPosition(selectedPosition)}", style = MaterialTheme.typography.labelMedium, color = Apricot, fontWeight = FontWeight.SemiBold)
+                    Text("Rewind to ${formatPosition(selectedPosition)}", style = MaterialTheme.typography.labelMedium, color = accent, fontWeight = FontWeight.SemiBold)
                     Text(formatPosition(selectedSegment.endPositionMs), style = MaterialTheme.typography.labelSmall, color = MutedCream)
                 }
             }
@@ -140,6 +152,10 @@ fun SleepSessionSheet(
                 },
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 shape = RoundedCornerShape(17.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accent,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
             ) {
                 Text("Rewind to this spot", fontWeight = FontWeight.Bold)
             }

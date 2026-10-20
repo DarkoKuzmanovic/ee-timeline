@@ -1,6 +1,7 @@
 package com.eetimeline.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -44,7 +46,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -87,6 +89,11 @@ private fun formatPosition(positionMs: Long): String {
     return "%d:%02d".format(totalSeconds / 60L, totalSeconds % 60L)
 }
 
+private fun Curriculum.unitNumberOf(episodeId: String?): Int? =
+    if (episodeId == null) null else units.firstOrNull { unit ->
+        unit.topics.any { topic -> topic.groups.any { group -> episodeId in group.episodeIds } }
+    }?.number
+
 @Composable
 fun JourneyScreen(
     curriculum: Curriculum,
@@ -122,6 +129,10 @@ fun JourneyScreen(
     val unit = curriculum.units.firstOrNull { unit ->
         unit.topics.any { topic -> topic.groups.any { group -> group.episodeIds.any { it !in progress || progress[it]?.played != true } } }
     }
+    val driftEra = suggestedRewindPoint?.let { curriculum.unitNumberOf(it.episodeId) }
+    val driftAccent = driftEra?.let(::unitColor) ?: Apricot
+    val planEra = curriculum.unitNumberOf(playback.currentEpisodeId) ?: driftEra ?: unit?.number
+    val planAccent = planEra?.let(::unitColor) ?: Apricot
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -132,18 +143,21 @@ fun JourneyScreen(
             item {
                 val title = curriculum.episodes[suggestedRewindPoint.episodeId]?.title ?: suggestedRewindPoint.episodeId
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = SurfaceRaised),
+                    colors = CardDefaults.cardColors(
+                        containerColor = driftAccent.copy(alpha = 0.12f).compositeOver(SurfaceRaised),
+                    ),
+                    border = BorderStroke(1.dp, driftAccent.copy(alpha = 0.38f)),
                     shape = RoundedCornerShape(22.dp),
                 ) {
                     Column(
                         Modifier.fillMaxWidth().padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text("A gentle place to pick up", style = MaterialTheme.typography.labelMedium, color = Mint, fontWeight = FontWeight.Bold)
+                        Text("A gentle place to pick up", style = MaterialTheme.typography.labelMedium, color = driftAccent, fontWeight = FontWeight.Bold)
                         Text(
                             buildAnnotatedString {
                                 append("You drifted off during ")
-                                withStyle(SpanStyle(fontStyle = FontStyle.Italic, fontWeight = FontWeight.SemiBold)) {
+                                withStyle(SpanStyle(color = driftAccent, fontWeight = FontWeight.SemiBold)) {
                                     append(title)
                                 }
                                 append(" — pick up from ${formatPosition(suggestedRewindPoint.positionMs)}?")
@@ -157,6 +171,10 @@ fun JourneyScreen(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = driftAccent,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
                         ) {
                             Text("Rewind there", fontWeight = FontWeight.Bold)
                         }
@@ -166,7 +184,7 @@ fun JourneyScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             TextButton(onClick = { showSleepSpotSheet = true }) {
-                                Text("Choose the spot", color = Apricot)
+                                Text("Choose the spot", color = driftAccent, fontWeight = FontWeight.SemiBold)
                             }
                             TextButton(onClick = onKeepMyPlace) {
                                 Text("Keep my place", color = MutedCream)
@@ -179,7 +197,7 @@ fun JourneyScreen(
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("A little further in time", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("A little further in time", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(6.dp))
                     Text("Good evening. Let’s take one more story with us.", style = MaterialTheme.typography.bodyLarge, color = MutedCream)
                 }
@@ -198,9 +216,9 @@ fun JourneyScreen(
                         Column(Modifier.weight(1f)) {
                             Text("YOUR JOURNEY", style = MaterialTheme.typography.labelMedium, color = Mint, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(5.dp))
-                            Text(journeyCounter, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(journeyCounter, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                         }
-                        Text("${(ratio * 100).roundToInt()}%", style = MaterialTheme.typography.headlineSmall, color = Apricot, fontWeight = FontWeight.Bold)
+                        Text("${(ratio * 100).roundToInt()}%", style = MaterialTheme.typography.headlineSmall, color = Apricot, fontWeight = FontWeight.SemiBold)
                     }
                     LinearProgressIndicator(
                         progress = { animatedRatio },
@@ -311,6 +329,16 @@ fun JourneyScreen(
                                             )
                                         }
                                     },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = planAccent.copy(alpha = 0.2f).compositeOver(SurfaceRaised),
+                                        selectedLabelColor = MaterialTheme.colorScheme.onSurface,
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = selectedPlan == preview.plan,
+                                        selectedBorderColor = planAccent.copy(alpha = 0.85f),
+                                        selectedBorderWidth = 1.5.dp,
+                                    ),
                                 )
                             }
                         }
@@ -321,7 +349,7 @@ fun JourneyScreen(
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Up next", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Up next", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     Text("In curriculum order, one story at a time.", style = MaterialTheme.typography.bodySmall, color = MutedCream)
                 }
                 OutlinedButton(onClick = { onDownloadNext(3) }, shape = RoundedCornerShape(15.dp)) {
@@ -361,6 +389,7 @@ fun JourneyScreen(
             session = sleepSession,
             episodes = curriculum.episodes,
             suggestedPoint = suggestedRewindPoint,
+            accent = driftAccent,
             onDismiss = { showSleepSpotSheet = false },
             onRewind = { point ->
                 showSleepSpotSheet = false

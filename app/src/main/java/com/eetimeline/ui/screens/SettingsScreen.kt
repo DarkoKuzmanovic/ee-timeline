@@ -2,6 +2,7 @@ package com.eetimeline.ui.screens
 
 import android.app.TimePickerDialog
 import android.text.format.DateFormat
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -63,7 +64,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Column {
-            Text("Listening settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Listening settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(5.dp))
             Text(
                 "Set a gentle bedtime routine and make each story sound right for you.",
@@ -73,14 +74,14 @@ fun SettingsScreen(
         }
 
         SettingsCard {
-            Text("Bedtime window", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Bedtime window", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text("Choose when bedtime listening begins and ends.", style = MaterialTheme.typography.bodySmall, color = MutedCream)
             BedtimeTimeRow("Start", settings.bedtimeStartMinute, onBedtimeStartMinuteChange)
             BedtimeTimeRow("End", settings.bedtimeEndMinute, onBedtimeEndMinuteChange)
         }
 
         SettingsCard {
-            Text("Sleep cues", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Sleep cues", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             SettingsSwitchRow(
                 title = "Start a sleep timer at bedtime",
                 description = "Automatically wind down playback during your bedtime window.",
@@ -114,13 +115,13 @@ fun SettingsScreen(
         }
 
         SettingsCard {
-            Text("Default playback speed", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Default playback speed", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text("Used when you start a story.", style = MaterialTheme.typography.bodySmall, color = MutedCream)
             PlaybackSpeedControl(settings.speed, onDefaultPlaybackSpeedChange)
         }
 
         SettingsCard {
-            Text("Audio", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Audio", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             SettingsSwitchRow(
                 title = "Voice boost",
                 description = "Bring spoken narration forward.",
@@ -143,6 +144,7 @@ private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceRaised),
+        border = BorderStroke(1.dp, Apricot.copy(alpha = 0.16f)),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(18.dp),
