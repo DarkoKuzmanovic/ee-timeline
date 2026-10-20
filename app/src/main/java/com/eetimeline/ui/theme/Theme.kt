@@ -1,9 +1,53 @@
 package com.eetimeline.ui.theme
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.eetimeline.R
+
+private val Fraunces = FontFamily(
+    Font(
+        R.font.fraunces,
+        weight = FontWeight.Normal,
+        variationSettings = FontVariation.Settings(FontVariation.weight(400)),
+    ),
+    Font(
+        R.font.fraunces,
+        weight = FontWeight.Medium,
+        variationSettings = FontVariation.Settings(FontVariation.weight(500)),
+    ),
+    Font(
+        R.font.fraunces,
+        weight = FontWeight.SemiBold,
+        variationSettings = FontVariation.Settings(FontVariation.weight(600)),
+    ),
+    Font(
+        R.font.fraunces,
+        weight = FontWeight.Bold,
+        variationSettings = FontVariation.Settings(FontVariation.weight(700)),
+    ),
+)
+
+private val EETimelineTypography = Typography().let { defaults ->
+    defaults.copy(
+        displayLarge = defaults.displayLarge.copy(fontFamily = Fraunces, fontSize = 44.sp, lineHeight = 50.sp, letterSpacing = (-0.6).sp),
+        displayMedium = defaults.displayMedium.copy(fontFamily = Fraunces, fontSize = 38.sp, lineHeight = 44.sp, letterSpacing = (-0.45).sp),
+        displaySmall = defaults.displaySmall.copy(fontFamily = Fraunces, fontSize = 32.sp, lineHeight = 38.sp, letterSpacing = (-0.3).sp),
+        headlineLarge = defaults.headlineLarge.copy(fontFamily = Fraunces, fontSize = 29.sp, lineHeight = 35.sp, letterSpacing = (-0.25).sp),
+        headlineMedium = defaults.headlineMedium.copy(fontFamily = Fraunces, fontSize = 26.sp, lineHeight = 32.sp, letterSpacing = (-0.2).sp),
+        headlineSmall = defaults.headlineSmall.copy(fontFamily = Fraunces, fontSize = 23.sp, lineHeight = 29.sp, letterSpacing = (-0.15).sp),
+        titleLarge = defaults.titleLarge.copy(fontFamily = Fraunces, fontSize = 21.sp, lineHeight = 27.sp, letterSpacing = (-0.1).sp),
+        titleMedium = defaults.titleMedium.copy(fontFamily = Fraunces, fontSize = 18.sp, lineHeight = 24.sp),
+        titleSmall = defaults.titleSmall.copy(fontFamily = Fraunces, fontSize = 16.sp, lineHeight = 22.sp),
+    )
+}
 
 val Night = Color(0xFF15171D)
 val Surface = Color(0xFF20232B)
@@ -50,6 +94,7 @@ fun unitColor(number: Int): Color = UnitColors[(number - 1).mod(UnitColors.size)
 fun EETimelineTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = EETimelineColors,
+        typography = EETimelineTypography,
         content = content,
     )
 }

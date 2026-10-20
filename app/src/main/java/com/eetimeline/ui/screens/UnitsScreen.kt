@@ -38,6 +38,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
@@ -45,7 +51,10 @@ import androidx.compose.ui.unit.dp
 import com.eetimeline.core.Curriculum
 import com.eetimeline.core.CurriculumUnit
 import com.eetimeline.ui.EpisodeProgress
+import com.eetimeline.core.Episode
+import com.eetimeline.ui.components.EraArtCollage
 import com.eetimeline.ui.components.MINI_PLAYER_HEIGHT
+import com.eetimeline.ui.components.unitArtworkUrls
 import com.eetimeline.ui.theme.MutedCream
 import com.eetimeline.ui.theme.SurfaceRaised
 import com.eetimeline.ui.theme.unitColor
@@ -72,6 +81,7 @@ fun UnitsScreen(
             UnitCard(
                 unit = unit,
                 progress = progress,
+                episodes = curriculum.episodes,
                 onClick = { onUnitClick(unit.number) },
             )
         }
@@ -82,6 +92,7 @@ fun UnitsScreen(
 private fun UnitCard(
     unit: CurriculumUnit,
     progress: Map<String, EpisodeProgress>,
+    episodes: Map<String, Episode>,
     onClick: () -> Unit,
 ) {
     val ids = unit.topics.flatMap { topic -> topic.groups.flatMap { it.episodeIds } }
@@ -91,59 +102,99 @@ private fun UnitCard(
     val completed = ids.isNotEmpty() && played == ids.size
     val color = unitColor(unit.number)
 
+    val artUrls = remember(unit, episodes) { unitArtworkUrls(unit, episodes, count = 6) }
+    val cardColor = SurfaceRaised
+
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceRaised),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(62.dp)) {
-                Canvas(Modifier.fillMaxSize()) {
-                    drawArc(
-                        color = color.copy(alpha = 0.18f),
-                        startAngle = -90f,
-                        sweepAngle = 360f,
-                        useCenter = false,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round),
-                    )
-                    drawArc(
-                        color = color,
-                        startAngle = -90f,
-                        sweepAngle = 360f * animated,
-                        useCenter = false,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round),
-                    )
-                }
-                Icon(
-                    imageVector = eraIcon(unit.number),
-                    contentDescription = unit.title,
-                    tint = color,
-                    modifier = Modifier.size(24.dp),
+        Box(Modifier.fillMaxWidth()) {
+            // Artwork layer: dimmed mosaic on the trailing edge, faded into the card toward the text.
+            Box(Modifier.matchParentSize()) {
+                EraArtCollage(
+                    imageUrls = artUrls,
+                    eraColor = color,
+                    eraIcon = eraIcon(unit.number),
+                    columns = 3,
+                    rows = 2,
+                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(132.dp).alpha(0.34f),
                 )
-                if (completed) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                0.0f to color.copy(alpha = 0.14f),
+                                0.6f to color.copy(alpha = 0.0f),
+                            ),
+                        ),
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .fillMaxHeight()
+                        .width(132.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                0.0f to cardColor,
+                                0.55f to cardColor.copy(alpha = 0.35f),
+                                1.0f to cardColor.copy(alpha = 0.0f),
+                            ),
+                        ),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(62.dp)) {
+                    Canvas(Modifier.fillMaxSize()) {
+                        drawArc(
+                            color = color.copy(alpha = 0.18f),
+                            startAngle = -90f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round),
+                        )
+                        drawArc(
+                            color = color,
+                            startAngle = -90f,
+                            sweepAngle = 360f * animated,
+                            useCenter = false,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round),
+                        )
+                    }
                     Icon(
-                        imageVector = Icons.Filled.CheckCircle,
-                        contentDescription = "Completed",
+                        imageVector = eraIcon(unit.number),
+                        contentDescription = unit.title,
                         tint = color,
-                        modifier = Modifier.align(Alignment.TopEnd).size(19.dp),
+                        modifier = Modifier.size(24.dp),
                     )
+                    if (completed) {
+                        Icon(
+                            imageVector = Icons.Filled.CheckCircle,
+                            contentDescription = "Completed",
+                            tint = color,
+                            modifier = Modifier.align(Alignment.TopEnd).size(19.dp),
+                        )
+                    }
                 }
+                Column(Modifier.weight(1f).padding(start = 16.dp, end = 8.dp)) {
+                    Text("UNIT ${unit.number}  ·  ${unit.period}", style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(5.dp))
+                    Text(unit.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("$played of ${ids.size} episodes", style = MaterialTheme.typography.bodySmall, color = MutedCream)
+                }
+                androidx.compose.material3.Icon(Icons.Filled.ArrowForward, contentDescription = "Open ${unit.title}", tint = MutedCream)
             }
-            Column(Modifier.weight(1f).padding(start = 16.dp, end = 8.dp)) {
-                Text("UNIT ${unit.number}  ·  ${unit.period}", style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(5.dp))
-                Text(unit.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text("$played of ${ids.size} episodes", style = MaterialTheme.typography.bodySmall, color = MutedCream)
-            }
-            androidx.compose.material3.Icon(Icons.Filled.ArrowForward, contentDescription = "Open ${unit.title}", tint = MutedCream)
         }
     }
 }
-private fun eraIcon(unitNumber: Int): ImageVector = when (unitNumber) {
+
+internal fun eraIcon(unitNumber: Int): ImageVector = when (unitNumber) {
     1 -> Icons.Filled.AccountBalance
     2 -> Icons.Filled.Route
     3 -> Icons.Filled.Castle

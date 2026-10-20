@@ -2,6 +2,9 @@
 
 A night-friendly podcast companion for listening to *Everything Everywhere Daily* in AP World History curriculum order. Follow the journey through nine eras, browse episodes on a compressed historical timeline, save progress, download stories for offline listening, and set a gentle sleep timer.
 
+Era pages pair softly tinted episode-art mosaics with a collapsible unit overview, while the timeline supports horizontal zooming and a draggable overview strip. Display, headline and title styles use Fraunces; its SIL Open Font License 1.1 is bundled at `app/src/main/res/raw/fraunces_ofl.txt`.
+
+
 ## Build and install
 
 Requires JDK 17+ and Android SDK platform 37 or newer. Build a debug APK with:
@@ -22,6 +25,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - [Timeline](docs/screenshots/timeline.png)
 - [Timeline — modern era](docs/screenshots/timeline-modern.png)
 - [Units](docs/screenshots/units.png)
+- [Timeline — zoomed](docs/screenshots/timeline-zoomed.png)
 - [Unit detail](docs/screenshots/unit-detail.png)
 - [Episode sheet](docs/screenshots/episode-sheet.png)
 - [Now Playing with sleep timer](docs/screenshots/now-playing.png)
