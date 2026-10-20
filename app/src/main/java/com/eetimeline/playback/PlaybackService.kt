@@ -49,6 +49,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.sqrt
 
+internal const val ACTION_DEBUG_START_SHORT_SLEEP_TIMER =
+    "com.eetimeline.debug.action.START_SHORT_SLEEP_TIMER"
+
 /** MediaSessionService for notification, lock-screen, Bluetooth and headset playback controls. */
 @UnstableApi
 class PlaybackService : MediaSessionService() {
@@ -125,7 +128,7 @@ class PlaybackService : MediaSessionService() {
             if (
                 playbackState == Player.STATE_ENDED &&
                 timer != null &&
-                timer.choice == SleepTimerChoice.END_OF_CURRENT_ITEM
+                timer.endsAtCurrentItem
             ) {
                 completeEndOfItemTimer(timer)
             }
@@ -149,7 +152,7 @@ class PlaybackService : MediaSessionService() {
             }
             val timer = activeSleepTimer
             val endedTimedItem = timer != null &&
-                timer.choice == SleepTimerChoice.END_OF_CURRENT_ITEM &&
+                timer.endsAtCurrentItem &&
                 timer.deadlineElapsedMs == null &&
                 (currentEpisodeId != timer.episodeId ||
                     (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && player.currentPosition < 1_000L))
@@ -183,7 +186,7 @@ class PlaybackService : MediaSessionService() {
                 val timer = activeSleepTimer
                 if (
                     timer != null &&
-                    timer.choice == SleepTimerChoice.END_OF_CURRENT_ITEM &&
+                    timer.endsAtCurrentItem &&
                     timer.deadlineElapsedMs == null &&
                     oldPosition.mediaItem?.mediaId == timer.episodeId &&
                     newPosition.mediaItem?.mediaId != timer.episodeId
@@ -213,7 +216,7 @@ class PlaybackService : MediaSessionService() {
                 }
                 beginSleepSegment()
             }
-            if (activeSleepTimer?.choice == SleepTimerChoice.END_OF_CURRENT_ITEM) {
+            if (activeSleepTimer?.endsAtCurrentItem == true) {
                 updateSleepTimer()
             }
         }
@@ -292,9 +295,7 @@ class PlaybackService : MediaSessionService() {
                 hasLoadedPlaybackSettings = true
                 playbackSettings = settings
                 preferDownloadedAudio.set(settings.preferDownloadedAudio)
-                rememberedSleepTimerChoice = settings.sleepTimerChoice.let { choice ->
-                    if (!BuildConfig.DEBUG && choice == SleepTimerChoice.MINUTES_1) SleepTimerChoice.OFF else choice
-                }
+                rememberedSleepTimerChoice = settings.sleepTimerChoice
                 player.playbackParameters = PlaybackParameters(settings.speed)
                 player.skipSilenceEnabled = settings.skipSilence
                 voiceBoostAudioEffect.setEnabled(settings.voiceBoost, player.audioSessionId)
@@ -322,6 +323,8 @@ class PlaybackService : MediaSessionService() {
             if (plan != null) {
                 serviceScope.launch { runCatching { playJourney(plan) } }
             }
+        } else if (BuildConfig.DEBUG && intent?.action == ACTION_DEBUG_START_SHORT_SLEEP_TIMER) {
+            startDebugShortSleepTimer()
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -513,21 +516,38 @@ class PlaybackService : MediaSessionService() {
         val timer = if (choice == SleepTimerChoice.END_OF_CURRENT_ITEM) {
             val item = player.currentMediaItem ?: return false
             val episodeId = item.mediaId.takeIf(String::isNotBlank) ?: return false
-            ActiveSleepTimer(choice = choice, episodeId = episodeId)
+            ActiveSleepTimer(endsAtCurrentItem = true, episodeId = episodeId)
         } else {
             val durationMs = choice.storedValue.toLong() * MILLIS_PER_MINUTE
             ActiveSleepTimer(
-                choice = choice,
+                endsAtCurrentItem = false,
                 deadlineElapsedMs = saturatingAdd(SystemClock.elapsedRealtime(), durationMs),
             )
         }
+        return activateSleepTimer(timer, rememberedChoice = choice)
+    }
+
+    private fun startDebugShortSleepTimer() {
+        val timer = ActiveSleepTimer(
+            endsAtCurrentItem = false,
+            deadlineElapsedMs = saturatingAdd(SystemClock.elapsedRealtime(), MILLIS_PER_MINUTE),
+        )
+        activateSleepTimer(timer, rememberedChoice = null)
+    }
+
+    private fun activateSleepTimer(
+        timer: ActiveSleepTimer,
+        rememberedChoice: SleepTimerChoice?,
+    ): Boolean {
         cancelSleepTimer(publish = false)
         sleepTimerBaseVolume = player.volume
         activeSleepTimer = timer
         sleepSessionCapture = SleepSessionCapture(System.currentTimeMillis())
-        rememberedSleepTimerChoice = choice
+        if (rememberedChoice != null) {
+            rememberedSleepTimerChoice = rememberedChoice
+            serviceScope.launch { playbackPreferences.setSleepTimerChoice(rememberedChoice) }
+        }
         lastPublishedRemainingSecond = null
-        serviceScope.launch { playbackPreferences.setSleepTimerChoice(choice) }
         updateShakeSensorRegistration()
         beginSleepSegment()
         publishSleepTimerState(force = true)
@@ -592,7 +612,7 @@ class PlaybackService : MediaSessionService() {
         player.volume = sleepTimerBaseVolume * sleepFadeVolume(safeRemainingMs)
         publishSleepTimerState(force)
         if (safeRemainingMs == 0L) {
-            if (timer.choice == SleepTimerChoice.END_OF_CURRENT_ITEM && timer.extensionAfterItemMs > 0L) {
+            if (timer.endsAtCurrentItem && timer.extensionAfterItemMs > 0L) {
                 completeEndOfItemTimer(timer)
             } else {
                 finishSleepTimer()
@@ -601,7 +621,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun getRemainingMs(timer: ActiveSleepTimer): Long? =
-        if (timer.choice == SleepTimerChoice.END_OF_CURRENT_ITEM && timer.deadlineElapsedMs == null) {
+        if (timer.endsAtCurrentItem && timer.deadlineElapsedMs == null) {
             val itemRemainingMs = if (player.currentMediaItem?.mediaId != timer.episodeId) {
                 0L
             } else {
@@ -618,7 +638,7 @@ class PlaybackService : MediaSessionService() {
         }
 
     private fun completeEndOfItemTimer(timer: ActiveSleepTimer) {
-        if (activeSleepTimer != timer || timer.choice != SleepTimerChoice.END_OF_CURRENT_ITEM) return
+        if (activeSleepTimer != timer || !timer.endsAtCurrentItem) return
         if (timer.extensionAfterItemMs > 0L) {
             activeSleepTimer = timer.copy(
                 deadlineElapsedMs = saturatingAdd(SystemClock.elapsedRealtime(), timer.extensionAfterItemMs),
@@ -632,7 +652,7 @@ class PlaybackService : MediaSessionService() {
 
     private fun extendActiveSleepTimer(): Boolean {
         val timer = activeSleepTimer ?: return false
-        if (timer.choice == SleepTimerChoice.END_OF_CURRENT_ITEM && timer.deadlineElapsedMs == null) {
+        if (timer.endsAtCurrentItem && timer.deadlineElapsedMs == null) {
             activeSleepTimer = timer.copy(
                 extensionAfterItemMs = saturatingAdd(timer.extensionAfterItemMs, TEN_MINUTES_MS),
             )
@@ -762,7 +782,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     private data class ActiveSleepTimer(
-        val choice: SleepTimerChoice,
+        val endsAtCurrentItem: Boolean,
         val deadlineElapsedMs: Long? = null,
         val episodeId: String? = null,
         val extensionAfterItemMs: Long = 0L,

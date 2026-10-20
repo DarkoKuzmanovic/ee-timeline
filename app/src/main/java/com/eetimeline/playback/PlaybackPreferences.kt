@@ -15,8 +15,6 @@ private val Context.playbackPreferencesDataStore by preferencesDataStore(name = 
 
 enum class SleepTimerChoice(val storedValue: Int) {
     OFF(0),
-    MINUTES_1(1),
-    MINUTES_10(10),
     MINUTES_15(15),
     MINUTES_30(30),
     MINUTES_45(45),
@@ -79,6 +77,7 @@ class PlaybackPreferences(context: Context) {
     }
 
     suspend fun setSleepTimerChoice(choice: SleepTimerChoice) {
+        require(choice != SleepTimerChoice.OFF) { "sleep timer choice must be selectable" }
         store.edit { it[SLEEP_TIMER_CHOICE] = choice.storedValue }
     }
 

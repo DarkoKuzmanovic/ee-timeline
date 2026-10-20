@@ -47,7 +47,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import com.eetimeline.BuildConfig
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -112,8 +111,6 @@ fun NowPlayingScreen(
         return
     }
     val rememberedTimerLabel = when (playback.lastSleepTimerChoice) {
-        1 -> if (BuildConfig.DEBUG) "1 minute" else null
-        10 -> "10 minutes"
         15 -> "15 minutes"
         30 -> "30 minutes"
         45 -> "45 minutes"
@@ -248,8 +245,6 @@ fun NowPlayingScreen(
                             sleepMenu = true
                         } else {
                             when (playback.lastSleepTimerChoice) {
-                                1 -> if (BuildConfig.DEBUG) onTimer(1L * 60_000L) else sleepMenu = true
-                                10 -> onTimer(10L * 60_000L)
                                 15 -> onTimer(15L * 60_000L)
                                 30 -> onTimer(30L * 60_000L)
                                 45 -> onTimer(45L * 60_000L)
@@ -263,12 +258,8 @@ fun NowPlayingScreen(
                     Text(if (playback.sleepTimerActive) "Change" else if (rememberedTimerLabel != null) "Again" else "Set", color = Apricot)
                 }
                 DropdownMenu(expanded = sleepMenu, onDismissRequest = { sleepMenu = false }) {
-                    DropdownMenuItem(text = { Text("10 minutes") }, onClick = { onTimer(10L * 60_000L); sleepMenu = false })
                     listOf(15, 30, 45, 60).forEach { minutes ->
                         DropdownMenuItem(text = { Text("$minutes minutes") }, onClick = { onTimer(minutes * 60_000L); sleepMenu = false })
-                    }
-                    if (BuildConfig.DEBUG) {
-                        DropdownMenuItem(text = { Text("Debug · 1 minute") }, onClick = { onTimer(1L * 60_000L); sleepMenu = false })
                     }
                     DropdownMenuItem(text = { Text("End of episode") }, onClick = { onEndOfEpisodeTimer(); sleepMenu = false })
                     if (playback.sleepTimerActive) {
@@ -339,8 +330,6 @@ private fun BedtimeNowPlaying(
 ) {
     val isEndOfEpisodeChoice = playback.lastSleepTimerChoice == -1
     val startTimerMinutes = when (playback.lastSleepTimerChoice) {
-        1 -> if (BuildConfig.DEBUG) 1 else 15
-        10 -> 10
         15 -> 15
         30 -> 30
         45 -> 45

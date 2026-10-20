@@ -421,8 +421,6 @@ fun EEApp(appGraph: AppGraph) {
             val sleepTimer = timerController
             when (durationMs) {
                 null -> sleepTimer?.cancel()
-                1L * 60_000L -> sleepTimer?.start(SleepTimerChoice.MINUTES_1)
-                10L * 60_000L -> sleepTimer?.start(SleepTimerChoice.MINUTES_10)
                 15L * 60_000L -> sleepTimer?.start(SleepTimerChoice.MINUTES_15)
                 30L * 60_000L -> sleepTimer?.start(SleepTimerChoice.MINUTES_30)
                 45L * 60_000L -> sleepTimer?.start(SleepTimerChoice.MINUTES_45)
