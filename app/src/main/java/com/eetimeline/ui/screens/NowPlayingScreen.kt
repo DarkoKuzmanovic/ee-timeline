@@ -22,7 +22,9 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -40,8 +42,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -69,6 +74,10 @@ fun NowPlayingScreen(
     onSpeed: (Float) -> Unit,
     onTimer: (Long?) -> Unit,
     onEndOfEpisodeTimer: () -> Unit,
+    onExtendSleepTimer: () -> Unit,
+    onToggleBedtime: () -> Unit,
+    onVoiceBoostChange: (Boolean) -> Unit,
+    onSkipSilenceChange: (Boolean) -> Unit,
     onMarkPlayed: () -> Unit,
     onDownload: () -> Unit,
     onOpenWebsite: () -> Unit,
@@ -83,6 +92,24 @@ fun NowPlayingScreen(
         }
         return
     }
+    val haptics = LocalHapticFeedback.current
+    if (playback.bedtimeMode) {
+        BedtimeNowPlaying(
+            episode = episode,
+            playback = playback,
+            onBack = onBack,
+            onPlayPause = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onPlayPause()
+            },
+            onSeek = onSeek,
+            onTimer = onTimer,
+            onEndOfEpisodeTimer = onEndOfEpisodeTimer,
+            onExtendSleepTimer = onExtendSleepTimer,
+            onToggleBedtime = onToggleBedtime,
+        )
+        return
+    }
     val rememberedTimerLabel = when (playback.lastSleepTimerChoice) {
         15 -> "15 minutes"
         30 -> "30 minutes"
@@ -94,6 +121,7 @@ fun NowPlayingScreen(
 
     var sleepMenu by remember { mutableStateOf(false) }
     var speedMenu by remember { mutableStateOf(false) }
+    var overflowMenu by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -115,6 +143,24 @@ fun NowPlayingScreen(
                     }
                 }
             }
+            IconButton(onClick = onToggleBedtime) {
+                Icon(Icons.Filled.Bedtime, contentDescription = "Toggle bedtime mode", tint = MutedCream)
+            }
+            androidx.compose.foundation.layout.Box {
+                IconButton(onClick = { overflowMenu = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "More playback options", tint = MutedCream)
+                }
+                DropdownMenu(expanded = overflowMenu, onDismissRequest = { overflowMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text(if (playback.voiceBoost) "Voice boost · on" else "Voice boost") },
+                        onClick = { onVoiceBoostChange(!playback.voiceBoost); overflowMenu = false },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(if (playback.skipSilence) "Skip silence · on" else "Skip silence") },
+                        onClick = { onSkipSilenceChange(!playback.skipSilence); overflowMenu = false },
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(22.dp))
@@ -129,6 +175,14 @@ fun NowPlayingScreen(
         Text(episode.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(4.dp))
         Text("Everything Everywhere Daily", style = MaterialTheme.typography.bodyMedium, color = MutedCream)
+        if (playback.journeyMode && playback.activeJourneyPlan != null && playback.journeyStoryCount > 0) {
+            Text(
+                "Tonight: story ${playback.journeyStoryIndex.coerceAtLeast(1)} of ${playback.journeyStoryCount}",
+                style = MaterialTheme.typography.labelMedium,
+                color = Apricot,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
         Spacer(Modifier.height(15.dp))
 
         Slider(
@@ -146,7 +200,14 @@ fun NowPlayingScreen(
             IconButton(onClick = { onSeek((playback.positionMs - 15_000L).coerceAtLeast(0)) }, modifier = Modifier.size(52.dp)) {
                 Icon(Icons.Filled.FastRewind, contentDescription = "Back 15 seconds", tint = MutedCream)
             }
-            Button(onClick = onPlayPause, shape = RoundedCornerShape(26.dp), modifier = Modifier.size(72.dp)) {
+            Button(
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onPlayPause()
+                },
+                shape = RoundedCornerShape(26.dp),
+                modifier = Modifier.size(72.dp),
+            ) {
                 Icon(if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (playback.isPlaying) "Pause" else "Play", modifier = Modifier.size(34.dp))
             }
             IconButton(onClick = { onSeek((playback.positionMs + 30_000L).coerceAtMost(playback.durationMs)) }, modifier = Modifier.size(52.dp)) {
@@ -168,16 +229,19 @@ fun NowPlayingScreen(
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text("Sleep timer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        playback.sleepRemainingMs?.let { "Fades out in ${formatClock(it)}" }
-                            ?: rememberedTimerLabel?.let { "Last time, you chose $it" }
-                            ?: "Let the story fade when you’re ready",
+                        when {
+                            playback.sleepRemainingMs != null -> "Fades out in ${formatClock(playback.sleepRemainingMs)}"
+                            playback.sleepTimerActive -> "Waiting for this story to end"
+                            rememberedTimerLabel != null -> "Last time, you chose $rememberedTimerLabel"
+                            else -> "Let the story fade when you’re ready"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MutedCream,
                     )
                 }
                 androidx.compose.material3.TextButton(
                     onClick = {
-                        if (playback.sleepRemainingMs != null) {
+                        if (playback.sleepTimerActive) {
                             sleepMenu = true
                         } else {
                             when (playback.lastSleepTimerChoice) {
@@ -191,14 +255,14 @@ fun NowPlayingScreen(
                         }
                     },
                 ) {
-                    Text(if (playback.sleepRemainingMs != null) "Change" else if (rememberedTimerLabel != null) "Again" else "Set", color = Apricot)
+                    Text(if (playback.sleepTimerActive) "Change" else if (rememberedTimerLabel != null) "Again" else "Set", color = Apricot)
                 }
                 DropdownMenu(expanded = sleepMenu, onDismissRequest = { sleepMenu = false }) {
                     listOf(15, 30, 45, 60).forEach { minutes ->
                         DropdownMenuItem(text = { Text("$minutes minutes") }, onClick = { onTimer(minutes * 60_000L); sleepMenu = false })
                     }
                     DropdownMenuItem(text = { Text("End of episode") }, onClick = { onEndOfEpisodeTimer(); sleepMenu = false })
-                    if (playback.sleepRemainingMs != null) {
+                    if (playback.sleepTimerActive) {
                         DropdownMenuItem(text = { Text("Turn off") }, onClick = { onTimer(null); sleepMenu = false })
                     }
                 }
@@ -207,7 +271,10 @@ fun NowPlayingScreen(
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedButton(
-                onClick = onMarkPlayed,
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onMarkPlayed()
+                },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(16.dp),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
@@ -246,6 +313,142 @@ fun NowPlayingScreen(
             IconButton(onClick = onOpenWebsite) { Icon(Icons.Filled.OpenInNew, contentDescription = "Open episode website", tint = MutedCream) }
         }
         Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun BedtimeNowPlaying(
+    episode: Episode,
+    playback: PlaybackUiState,
+    onBack: () -> Unit,
+    onPlayPause: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onTimer: (Long?) -> Unit,
+    onEndOfEpisodeTimer: () -> Unit,
+    onExtendSleepTimer: () -> Unit,
+    onToggleBedtime: () -> Unit,
+) {
+    val isEndOfEpisodeChoice = playback.lastSleepTimerChoice == -1
+    val startTimerMinutes = when (playback.lastSleepTimerChoice) {
+        15 -> 15
+        30 -> 30
+        45 -> 45
+        60 -> 60
+        else -> 15
+    }
+    val timerButtonLabel = when {
+        playback.sleepTimerActive -> "+10 min"
+        isEndOfEpisodeChoice -> "Start end-of-episode timer"
+        else -> "Start $startTimerMinutes min timer"
+    }
+    val warm = Color(0xFFB9AD9A)
+    Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = warm.copy(alpha = 0.72f))
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onToggleBedtime) {
+                    Icon(Icons.Filled.Bedtime, contentDescription = "Turn bedtime mode off", tint = warm.copy(alpha = 0.72f))
+                }
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(episode.yearLabel, style = MaterialTheme.typography.labelLarge, color = warm.copy(alpha = 0.66f))
+                Text(
+                    episode.title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = warm.copy(alpha = 0.88f),
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (playback.journeyMode && playback.activeJourneyPlan != null && playback.journeyStoryCount > 0) {
+                    Text(
+                        "Tonight: story ${playback.journeyStoryIndex.coerceAtLeast(1)} of ${playback.journeyStoryCount}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = warm.copy(alpha = 0.62f),
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = { onSeek((playback.positionMs - 15_000L).coerceAtLeast(0L)) }, modifier = Modifier.size(68.dp)) {
+                    Icon(Icons.Filled.FastRewind, contentDescription = "Back 15 seconds", tint = warm.copy(alpha = 0.68f), modifier = Modifier.size(32.dp))
+                }
+                Button(
+                    onClick = onPlayPause,
+                    modifier = Modifier.size(100.dp),
+                    shape = RoundedCornerShape(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = warm.copy(alpha = 0.18f), contentColor = warm),
+                ) {
+                    Icon(
+                        if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (playback.isPlaying) "Pause" else "Play",
+                        modifier = Modifier.size(52.dp),
+                    )
+                }
+                IconButton(
+                    onClick = { onSeek((playback.positionMs + 30_000L).coerceAtMost(playback.durationMs)) },
+                    modifier = Modifier.size(68.dp),
+                ) {
+                    Icon(Icons.Filled.FastForward, contentDescription = "Forward 30 seconds", tint = warm.copy(alpha = 0.68f), modifier = Modifier.size(32.dp))
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF080706)),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("SLEEP TIMER", style = MaterialTheme.typography.labelMedium, color = warm.copy(alpha = 0.62f), fontWeight = FontWeight.Bold)
+                    Text(
+                        when {
+                            !playback.sleepTimerActive -> "No timer set"
+                            playback.sleepRemainingMs == null -> "Waiting for this story to end"
+                            else -> "Fades out in ${formatClock(playback.sleepRemainingMs)}"
+                        },
+                        style = MaterialTheme.typography.titleLarge,
+                        color = warm.copy(alpha = 0.88f),
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Button(
+                        onClick = {
+                            if (playback.sleepTimerActive) {
+                                onExtendSleepTimer()
+                            } else if (isEndOfEpisodeChoice) {
+                                onEndOfEpisodeTimer()
+                            } else {
+                                onTimer(startTimerMinutes * 60_000L)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = warm.copy(alpha = 0.15f),
+                            contentColor = warm.copy(alpha = 0.94f),
+                        ),
+                    ) {
+                        Text(timerButtonLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
     }
 }
 

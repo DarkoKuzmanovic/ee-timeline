@@ -3,6 +3,7 @@ package com.eetimeline.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,7 +12,10 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -23,6 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
@@ -33,31 +40,43 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.eetimeline.core.Curriculum
 import com.eetimeline.core.Episode
+import com.eetimeline.core.JourneyPlan
+import com.eetimeline.core.SleepRewindPoint
 import com.eetimeline.core.orderedEpisodeIds
+import com.eetimeline.playback.PlaybackSettings
+import com.eetimeline.playback.SleepSession
 import com.eetimeline.ui.components.BottomNavigation
 import com.eetimeline.ui.components.EpisodeDetailSheet
 import com.eetimeline.ui.components.MiniPlayer
 import com.eetimeline.ui.screens.JourneyScreen
 import com.eetimeline.ui.screens.NowPlayingScreen
+import com.eetimeline.ui.screens.SettingsScreen
 import com.eetimeline.ui.screens.TimelineScreen
 import com.eetimeline.ui.screens.UnitDetailScreen
 import com.eetimeline.ui.screens.UnitsScreen
 import com.eetimeline.ui.theme.MutedCream
-
 private const val ROUTE_JOURNEY = "journey"
 private const val ROUTE_TIMELINE = "timeline"
 private const val ROUTE_UNITS = "units"
 private const val ROUTE_UNIT = "unit/{number}"
 private const val ROUTE_NOW_PLAYING = "now-playing"
+private const val ROUTE_SETTINGS = "settings"
 
 data class EEAppState(
     val curriculum: Curriculum = Curriculum(),
     val progress: Map<String, EpisodeProgress> = emptyMap(),
     val playback: PlaybackUiState = PlaybackUiState(),
+    val settings: PlaybackSettings = PlaybackSettings(),
+    val planPreviews: List<JourneyPlanPreview> = emptyList(),
+    val sleepSession: SleepSession? = null,
+    val suggestedRewindPoint: SleepRewindPoint? = null,
 )
 
 data class EEAppActions(
     val playJourney: () -> Unit,
+    val playJourneyPlan: (JourneyPlan) -> Unit,
+    val rewindSleepSession: (SleepRewindPoint) -> Unit,
+    val keepSleepSessionPlace: () -> Unit,
     val playEpisode: (Episode) -> Unit,
     val queueEpisode: (Episode) -> Unit,
     val togglePlayed: (Episode) -> Unit,
@@ -68,11 +87,21 @@ data class EEAppActions(
     val setSpeed: (Float) -> Unit,
     val setSleepTimer: (Long?) -> Unit,
     val sleepUntilEpisodeEnds: () -> Unit,
+    val extendSleepTimer: () -> Unit,
+    val toggleBedtimeMode: () -> Unit,
+    val setBedtimeStartMinute: (Int) -> Unit,
+    val setBedtimeEndMinute: (Int) -> Unit,
+    val setAutoSleepTimerInBedtime: (Boolean) -> Unit,
+    val setShakeToExtend: (Boolean) -> Unit,
+    val setRewindOffsetMinutes: (Int) -> Unit,
+    val setVoiceBoost: (Boolean) -> Unit,
+    val setSkipSilence: (Boolean) -> Unit,
     val openWebsite: (Episode) -> Unit,
 )
 
 @Composable
 fun EEAppContent(state: EEAppState, actions: EEAppActions) {
+    val haptics = LocalHapticFeedback.current
     val navController = rememberNavController()
     val navEntry by navController.currentBackStackEntryAsState()
     val route = navEntry?.destination?.route
@@ -87,7 +116,7 @@ fun EEAppContent(state: EEAppState, actions: EEAppActions) {
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = if (route == ROUTE_NOW_PLAYING && state.playback.bedtimeMode) Color.Black else MaterialTheme.colorScheme.background,
         bottomBar = {
             Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars)) {
                 if (route != ROUTE_NOW_PLAYING && episode != null) {
@@ -125,7 +154,15 @@ fun EEAppContent(state: EEAppState, actions: EEAppActions) {
                     progress = state.progress,
                     playback = state.playback,
                     upcoming = upcoming,
+                    planPreviews = state.planPreviews,
+                    selectedPlan = state.settings.lastJourneyPlan,
+                    sleepSession = state.sleepSession,
+                    suggestedRewindPoint = state.suggestedRewindPoint,
                     onContinue = actions.playJourney,
+                    onPlayPlan = actions.playJourneyPlan,
+                    onRewind = actions.rewindSleepSession,
+                    onKeepMyPlace = actions.keepSleepSessionPlace,
+                    onSettings = { navController.navigate(ROUTE_SETTINGS) },
                     onEpisodeClick = { selectedEpisode = it },
                     onDownloadNext = actions.downloadNext,
                 )
@@ -164,6 +201,32 @@ fun EEAppContent(state: EEAppState, actions: EEAppActions) {
                     EmptyCurriculumScreen()
                 }
             }
+            composable(ROUTE_SETTINGS) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back to journey")
+                        }
+                        Text("Back to the journey", color = MutedCream)
+                    }
+                    Box(Modifier.weight(1f)) {
+                        SettingsScreen(
+                            settings = state.settings,
+                            onBedtimeStartMinuteChange = actions.setBedtimeStartMinute,
+                            onBedtimeEndMinuteChange = actions.setBedtimeEndMinute,
+                            onAutoSleepTimerInBedtimeChange = actions.setAutoSleepTimerInBedtime,
+                            onShakeToExtendChange = actions.setShakeToExtend,
+                            onRewindOffsetMinutesChange = actions.setRewindOffsetMinutes,
+                            onDefaultPlaybackSpeedChange = actions.setSpeed,
+                            onVoiceBoostChange = actions.setVoiceBoost,
+                            onSkipSilenceChange = actions.setSkipSilence,
+                        )
+                    }
+                }
+            }
             composable(ROUTE_NOW_PLAYING) {
                 NowPlayingScreen(
                     episode = episode,
@@ -180,6 +243,10 @@ fun EEAppContent(state: EEAppState, actions: EEAppActions) {
                     onSpeed = actions.setSpeed,
                     onTimer = actions.setSleepTimer,
                     onEndOfEpisodeTimer = actions.sleepUntilEpisodeEnds,
+                    onExtendSleepTimer = actions.extendSleepTimer,
+                    onToggleBedtime = actions.toggleBedtimeMode,
+                    onVoiceBoostChange = actions.setVoiceBoost,
+                    onSkipSilenceChange = actions.setSkipSilence,
                     onMarkPlayed = { episode?.let(actions.togglePlayed) },
                     onDownload = { episode?.let(actions.toggleDownload) },
                     onOpenWebsite = { episode?.let(actions.openWebsite) },
@@ -198,10 +265,18 @@ fun EEAppContent(state: EEAppState, actions: EEAppActions) {
             downloadProgressPercent = state.progress[selected.id]?.downloadProgressPercent,
             downloadFailed = state.progress[selected.id]?.downloadFailed == true,
             onDismiss = { selectedEpisode = null },
-            onPlay = { actions.playEpisode(selected); selectedEpisode = null; navController.navigate(ROUTE_NOW_PLAYING) },
+            onPlay = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                actions.playEpisode(selected)
+                selectedEpisode = null
+                navController.navigate(ROUTE_NOW_PLAYING)
+            },
             onQueue = { actions.queueEpisode(selected); selectedEpisode = null },
             onDownload = { actions.toggleDownload(selected) },
-            onTogglePlayed = { actions.togglePlayed(selected) },
+            onTogglePlayed = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                actions.togglePlayed(selected)
+            },
         )
     }
 }

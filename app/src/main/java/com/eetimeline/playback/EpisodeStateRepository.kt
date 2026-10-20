@@ -3,15 +3,24 @@ package com.eetimeline.playback
 import android.content.Context
 import androidx.room.Dao
 import androidx.room.Database
+import androidx.room.Embedded
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Relation
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import kotlinx.coroutines.flow.Flow
+import androidx.room.Transaction
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.room.withTransaction
+import com.eetimeline.core.SleepSegment
 import com.eetimeline.core.isPlayedByPosition
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 @Entity(tableName = "episode_playback_state")
@@ -21,6 +30,42 @@ data class EpisodePlaybackEntity(
     val durationMs: Long,
     val isPlayed: Boolean,
     val updatedAtMs: Long,
+)
+
+@Entity(tableName = "sleep_session")
+data class SleepSessionEntity(
+    @PrimaryKey val id: Int = SLEEP_SESSION_ID,
+    val timerStartedAtMs: Long,
+    val fadeEndedAtMs: Long,
+)
+
+@Entity(
+    tableName = "sleep_session_segment",
+    primaryKeys = ["sessionId", "segmentIndex"],
+    foreignKeys = [
+        ForeignKey(
+            entity = SleepSessionEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["sessionId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("sessionId")],
+)
+data class SleepSessionSegmentEntity(
+    val sessionId: Int,
+    val segmentIndex: Int,
+    val episodeId: String,
+    val startPositionMs: Long,
+    val endPositionMs: Long,
+    val wallClockStartMs: Long,
+    val wallClockEndMs: Long,
+)
+
+data class SleepSessionWithSegments(
+    @Embedded val session: SleepSessionEntity,
+    @Relation(parentColumn = "id", entityColumn = "sessionId")
+    val segments: List<SleepSessionSegmentEntity>,
 )
 
 @Dao
@@ -62,13 +107,58 @@ interface EpisodePlaybackDao {
             "WHERE episodeId = :episodeId",
     )
     suspend fun clearProgress(episodeId: String, updatedAtMs: Long): Int
+
+    @Transaction
+    @Query("SELECT * FROM sleep_session WHERE id = $SLEEP_SESSION_ID")
+    fun observeSleepSession(): Flow<SleepSessionWithSegments?>
+
+    @Transaction
+    @Query("SELECT * FROM sleep_session WHERE id = $SLEEP_SESSION_ID")
+    suspend fun getSleepSession(): SleepSessionWithSegments?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSleepSession(session: SleepSessionEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSleepSegments(segments: List<SleepSessionSegmentEntity>)
+
+    @Query("DELETE FROM sleep_session WHERE id = $SLEEP_SESSION_ID")
+    suspend fun deleteSleepSession()
 }
 
-@Database(entities = [EpisodePlaybackEntity::class], version = 1, exportSchema = false)
+private const val SLEEP_SESSION_ID = 1
+
+@Database(
+    entities = [EpisodePlaybackEntity::class, SleepSessionEntity::class, SleepSessionSegmentEntity::class],
+    version = 2,
+    exportSchema = false,
+)
 abstract class EpisodeStateDatabase : RoomDatabase() {
     abstract fun episodePlaybackDao(): EpisodePlaybackDao
 
     companion object {
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS sleep_session (" +
+                        "id INTEGER NOT NULL, timerStartedAtMs INTEGER NOT NULL, " +
+                        "fadeEndedAtMs INTEGER NOT NULL, PRIMARY KEY(id))",
+                )
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS sleep_session_segment (" +
+                        "sessionId INTEGER NOT NULL, segmentIndex INTEGER NOT NULL, episodeId TEXT NOT NULL, " +
+                        "startPositionMs INTEGER NOT NULL, endPositionMs INTEGER NOT NULL, " +
+                        "wallClockStartMs INTEGER NOT NULL, wallClockEndMs INTEGER NOT NULL, " +
+                        "PRIMARY KEY(sessionId, segmentIndex), " +
+                        "FOREIGN KEY(sessionId) REFERENCES sleep_session(id) ON UPDATE NO ACTION ON DELETE CASCADE)",
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_sleep_session_segment_sessionId " +
+                        "ON sleep_session_segment(sessionId)",
+                )
+            }
+        }
+
         @Volatile
         private var instance: EpisodeStateDatabase? = null
 
@@ -78,7 +168,7 @@ abstract class EpisodeStateDatabase : RoomDatabase() {
                     context.applicationContext,
                     EpisodeStateDatabase::class.java,
                     DATABASE_NAME,
-                ).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
             }
 
         private const val DATABASE_NAME = "episode_playback_state.db"
@@ -93,9 +183,16 @@ data class EpisodePlaybackState(
     val updatedAtMs: Long,
 )
 
+data class SleepSession(
+    val timerStartedAtMs: Long,
+    val fadeEndedAtMs: Long,
+    val segments: List<SleepSegment>,
+)
+
 /** Durable per-episode resume position and manual/automatic played state. */
 class EpisodeStateRepository private constructor(context: Context) {
-    private val dao = EpisodeStateDatabase.getInstance(context).episodePlaybackDao()
+    private val database = EpisodeStateDatabase.getInstance(context)
+    private val dao = database.episodePlaybackDao()
 
     suspend fun getState(episodeId: String): EpisodePlaybackState? = dao.get(episodeId)?.toState()
 
@@ -105,8 +202,43 @@ class EpisodeStateRepository private constructor(context: Context) {
     fun observeAll(): Flow<List<EpisodePlaybackState>> =
         dao.observeAll().map { states -> states.map { it.toState() } }
 
-    suspend fun getResumePositionMs(episodeId: String): Long =
-        dao.get(episodeId)?.positionMs ?: 0L
+    fun observeSleepSession(): Flow<SleepSession?> =
+        dao.observeSleepSession().map { it?.toSleepSession() }
+
+    suspend fun getSleepSession(): SleepSession? = dao.getSleepSession()?.toSleepSession()
+
+    suspend fun recordSleepSession(
+        timerStartedAtMs: Long,
+        fadeEndedAtMs: Long,
+        segments: List<SleepSegment>,
+    ) {
+        database.withTransaction {
+            dao.deleteSleepSession()
+            dao.insertSleepSession(
+                SleepSessionEntity(
+                    timerStartedAtMs = timerStartedAtMs,
+                    fadeEndedAtMs = fadeEndedAtMs,
+                ),
+            )
+            dao.insertSleepSegments(
+                segments.mapIndexed { index, segment ->
+                    SleepSessionSegmentEntity(
+                        sessionId = SLEEP_SESSION_ID,
+                        segmentIndex = index,
+                        episodeId = segment.episodeId,
+                        startPositionMs = segment.startPositionMs,
+                        endPositionMs = segment.endPositionMs,
+                        wallClockStartMs = segment.wallClockStartMs,
+                        wallClockEndMs = segment.wallClockEndMs,
+                    )
+                },
+            )
+        }
+    }
+
+    suspend fun resolveSleepSession() {
+        database.withTransaction { dao.deleteSleepSession() }
+    }
 
     /** Saves resume progress, preserving a manually played state and marking near-completion played. */
     suspend fun saveProgress(
@@ -182,6 +314,20 @@ class EpisodeStateRepository private constructor(context: Context) {
         updatedAtMs = updatedAtMs,
     )
 
+    private fun SleepSessionWithSegments.toSleepSession() = SleepSession(
+        timerStartedAtMs = session.timerStartedAtMs,
+        fadeEndedAtMs = session.fadeEndedAtMs,
+        segments = segments.sortedBy { it.segmentIndex }.map { segment ->
+            SleepSegment(
+                episodeId = segment.episodeId,
+                startPositionMs = segment.startPositionMs,
+                endPositionMs = segment.endPositionMs,
+                wallClockStartMs = segment.wallClockStartMs,
+                wallClockEndMs = segment.wallClockEndMs,
+            )
+        },
+    )
+
     companion object {
         @Volatile
         private var instance: EpisodeStateRepository? = null
@@ -193,3 +339,4 @@ class EpisodeStateRepository private constructor(context: Context) {
             }
     }
 }
+

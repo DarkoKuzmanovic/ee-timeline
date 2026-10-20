@@ -130,4 +130,199 @@ class CurriculumLogicTest {
         assertEquals(0f, sleepFadeVolume(-1L), 0.0001f)
         assertEquals(1f, sleepFadeVolume(60_000L), 0.0001f)
     }
+
+    @Test
+    fun selectsSleepRewindPointByWallClockTimeAndClampsToSession() {
+        val segments = listOf(
+            SleepSegment("first", 0L, 1_000L, 10_000L, 20_000L),
+            SleepSegment("second", 500L, 2_500L, 20_000L, 30_000L),
+        )
+
+        assertEquals(
+            SleepRewindPoint("first", 250L, 0),
+            selectSleepRewindPoint(segments, 12_500L),
+        )
+        assertEquals(
+            SleepRewindPoint("first", 0L, 0),
+            selectSleepRewindPoint(segments, 5_000L),
+        )
+        assertEquals(
+            SleepRewindPoint("second", 2_500L, 1),
+            selectSleepRewindPoint(segments, 35_000L),
+        )
+        assertNull(selectSleepRewindPoint(emptyList(), 10_000L))
+    }
+
+    @Test
+    fun rewindGapUsesNearestBoundaryAndHandlesZeroSpansAndInvalidPositions() {
+        val segments = listOf(
+            SleepSegment("before-gap", -10L, 100L, 0L, 10L),
+            SleepSegment("zero-span", 50L, 20L, 30L, 30L),
+            SleepSegment("after-gap", 20L, 120L, 40L, 50L),
+        )
+
+        assertEquals(
+            SleepRewindPoint("before-gap", 100L, 0),
+            selectSleepRewindPoint(segments, 20L),
+        )
+        assertEquals(
+            SleepRewindPoint("zero-span", 50L, 1),
+            selectSleepRewindPoint(segments, 30L),
+        )
+        assertEquals(
+            SleepRewindPoint("before-gap", 0L, 0),
+            selectSleepRewindPoint(segments, -5L),
+        )
+    }
+
+    @Test
+    fun duplicateSegmentsChooseFirstAndZeroPositionDurationStaysFixed() {
+        val segments = listOf(
+            SleepSegment("zero-duration", 100L, 100L, 100L, 200L),
+            SleepSegment("duplicate", 0L, 1_000L, 100L, 200L),
+        )
+
+        assertEquals(
+            SleepRewindPoint("zero-duration", 100L, 0),
+            selectSleepRewindPoint(segments, 150L),
+        )
+    }
+
+    @Test
+    fun completedEpisodeIdsAfterRewindAreUniqueOrderedAndFiltered() {
+        val segments = listOf(
+            SleepSegment("a", 0L, 100L, 0L, 10L),
+            SleepSegment("b", 0L, 100L, 10L, 20L),
+            SleepSegment("a", 100L, 200L, 20L, 30L),
+            SleepSegment("c", 0L, 100L, 30L, 40L),
+        )
+        val completedSegments = setOf(0, 1, 2, 3)
+
+        assertEquals(
+            listOf("a", "b", "c"),
+            completedEpisodeIdsAfter(segments, SleepRewindPoint("a", 50L, 0), completedSegments),
+        )
+        assertEquals(
+            listOf("b", "a", "c"),
+            completedEpisodeIdsAfter(segments, SleepRewindPoint("a", 100L, 0), completedSegments),
+        )
+        assertEquals(
+            listOf("b", "c"),
+            completedEpisodeIdsAfter(
+                segments,
+                SleepRewindPoint("a", 50L, 0),
+                setOf(1, 3),
+            ),
+        )
+        assertTrue(
+            completedEpisodeIdsAfter(segments, SleepRewindPoint("missing", 0L, 9), completedSegments).isEmpty(),
+        )
+    }
+
+    @Test
+    fun onlyCompletedSegmentsAfterTheSelectedPointAreUnmarked() {
+        val segments = listOf(
+            SleepSegment("already-completed", 0L, 100L, 0L, 10L),
+            SleepSegment("already-completed", 100L, 150L, 10L, 20L),
+            SleepSegment("completed-later", 0L, 100L, 20L, 30L),
+        )
+
+        assertEquals(
+            listOf("completed-later"),
+            completedEpisodeIdsAfter(
+                segments,
+                SleepRewindPoint("already-completed", 120L, 1),
+                setOf(0, 2),
+            ),
+        )
+    }
+
+    @Test
+    fun rewindPointInterpolatesBackwardSeekSegments() {
+        val segment = SleepSegment("rewound", 1_000L, 0L, 0L, 100L)
+
+        assertEquals(SleepRewindPoint("rewound", 500L, 0), selectSleepRewindPoint(listOf(segment), 50L))
+    }
+
+    @Test
+    fun journeyPlansSelectWholeStoriesAndUseRemainingDurationBudgets() {
+        val minute = 60_000L
+        val ids = listOf("a", "b", "c", "d")
+        val durations = ids.associateWith { 20L * minute }
+        val resumes = mapOf("a" to 10L * minute)
+
+        assertEquals(
+            JourneySelection(ids, 70L * minute),
+            selectJourneyPlan(ids, durations, resumes, JourneyPlan.JUST_KEEP_GOING),
+        )
+        assertEquals(
+            JourneySelection(listOf("a"), 10L * minute),
+            selectJourneyPlan(ids, durations, resumes, JourneyPlan.ONE_STORY),
+        )
+        assertEquals(
+            JourneySelection(listOf("a", "b"), 30L * minute),
+            selectJourneyPlan(ids, durations, resumes, JourneyPlan.TWO_STORIES),
+        )
+        assertEquals(
+            JourneySelection(listOf("a", "b"), 30L * minute),
+            selectJourneyPlan(ids, durations, resumes, JourneyPlan.THIRTY_MINUTES),
+        )
+        assertEquals(
+            JourneySelection(listOf("a", "b", "c"), 50L * minute),
+            selectJourneyPlan(ids, durations, resumes, JourneyPlan.FORTY_FIVE_MINUTES),
+        )
+        assertEquals(
+            JourneySelection(listOf("a", "b", "c"), 30L * minute),
+            selectJourneyPlan(
+                ids,
+                durations,
+                emptyMap(),
+                JourneyPlan.THIRTY_MINUTES,
+                playbackSpeed = 2f,
+            ),
+        )
+        assertEquals(
+            JourneySelection(emptyList(), 0L),
+            selectJourneyPlan(emptyList(), durations, resumes, JourneyPlan.ONE_STORY),
+        )
+    }
+
+    @Test
+    fun journeyPlansClampResumePositionsAndChooseAtLeastOneWholeEpisode() {
+        assertEquals(
+            JourneySelection(listOf("negative", "past-end", "unresumed"), 220L),
+            selectJourneyPlan(
+                orderedEpisodeIds = listOf("negative", "past-end", "unresumed"),
+                durationsMs = mapOf("negative" to 120L, "past-end" to 100L, "unresumed" to 100L),
+                resumePositionsMs = mapOf("negative" to -10L, "past-end" to 150L),
+                plan = JourneyPlan.JUST_KEEP_GOING,
+            ),
+        )
+        assertEquals(
+            JourneySelection(listOf("long"), 60L * 60_000L),
+            selectJourneyPlan(
+                listOf("long", "next"),
+                mapOf("long" to 60L * 60_000L, "next" to 1L),
+                emptyMap(),
+                JourneyPlan.THIRTY_MINUTES,
+            ),
+        )
+    }
+
+    @Test
+    fun bedtimeWindowHandlesDayNightAndEqualBoundaries() {
+        assertTrue(isInBedtimeWindow(21 * 60, 21 * 60, 6 * 60))
+        assertTrue(isInBedtimeWindow(0, 21 * 60, 6 * 60))
+        assertTrue(isInBedtimeWindow(5 * 60 + 59, 21 * 60, 6 * 60))
+        assertFalse(isInBedtimeWindow(6 * 60, 21 * 60, 6 * 60))
+        assertFalse(isInBedtimeWindow(12 * 60, 21 * 60, 6 * 60))
+
+        assertTrue(isInBedtimeWindow(9 * 60, 9 * 60, 17 * 60))
+        assertTrue(isInBedtimeWindow(16 * 60 + 59, 9 * 60, 17 * 60))
+        assertFalse(isInBedtimeWindow(17 * 60, 9 * 60, 17 * 60))
+        assertFalse(isInBedtimeWindow(8 * 60, 9 * 60, 17 * 60))
+
+        assertFalse(isInBedtimeWindow(10, 300, 300))
+        assertFalse(isInBedtimeWindow(1_440, 21 * 60, 6 * 60))
+    }
 }
