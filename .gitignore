@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local Android SDK settings
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Worktrees and local tooling
+.worktrees/
+.omp/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

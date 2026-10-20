@@ -1,0 +1,74 @@
+{
+  "source": "https://everything-everywhere.com/",
+  "feedUrl": "https://feeds.megaphone.fm/ADV3162807280",
+  "generatedAt": "2026-10-20T00:00:00Z",
+  "units": [
+    {
+      "number": 1,
+      "title": "The Global Tapestry",
+      "period": "c. 1200 to c. 1450",
+      "startYear": 1200,
+      "endYear": 1450,
+      "summary": "A hand-authored fixture unit.",
+      "topics": [
+        {
+          "id": "1.1",
+          "title": "Early history",
+          "detail": null,
+          "groups": [
+            { "title": null, "episodeIds": ["ancient-event"] },
+            { "title": "Later episode", "episodeIds": ["pre-1200-event"] }
+          ]
+        },
+        { "id": "1.2", "title": "Empty topic", "detail": "No assigned episodes.", "groups": [] },
+        {
+          "id": "1.3",
+          "title": "Later history",
+          "detail": null,
+          "groups": [
+            { "title": null, "episodeIds": ["modern-event"] }
+          ]
+        }
+      ]
+    }
+  ],
+  "episodes": {
+    "ancient-event": {
+      "id": "ancient-event",
+      "title": "Ancient event",
+      "pageUrl": "https://everything-everywhere.com/ancient-event/",
+      "audioUrl": "https://example.com/ancient-event.mp3",
+      "pubDate": "2026-10-19T00:00:00Z",
+      "durationSec": 900,
+      "description": "An event in the BCE era.",
+      "imageUrl": null,
+      "approxYear": -500,
+      "yearLabel": "500 BCE"
+    },
+    "pre-1200-event": {
+      "id": "pre-1200-event",
+      "title": "Pre-1200 event",
+      "pageUrl": "https://everything-everywhere.com/pre-1200-event/",
+      "audioUrl": "https://example.com/pre-1200-event.mp3",
+      "pubDate": "2026-10-19T00:00:00Z",
+      "durationSec": 1200,
+      "description": "An event before 1200 CE.",
+      "imageUrl": null,
+      "approxYear": 800,
+      "yearLabel": "800 CE"
+    },
+    "modern-event": {
+      "id": "modern-event",
+      "title": "Modern event",
+      "pageUrl": "https://everything-everywhere.com/modern-event/",
+      "audioUrl": "https://example.com/modern-event.mp3",
+      "pubDate": "2026-10-19T00:00:00Z",
+      "durationSec": 1800,
+      "description": "An event in the modern era.",
+      "imageUrl": "https://example.com/image.jpg",
+      "approxYear": 1300,
+      "yearLabel": "1300 CE"
+    }
+  },
+  "issues": []
+}
