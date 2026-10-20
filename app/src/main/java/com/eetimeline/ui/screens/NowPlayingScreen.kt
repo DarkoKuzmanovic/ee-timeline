@@ -105,6 +105,7 @@ fun NowPlayingScreen(
             },
             onSeek = onSeek,
             onTimer = onTimer,
+            onEndOfEpisodeTimer = onEndOfEpisodeTimer,
             onExtendSleepTimer = onExtendSleepTimer,
             onToggleBedtime = onToggleBedtime,
         )
@@ -332,9 +333,25 @@ private fun BedtimeNowPlaying(
     onPlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
     onTimer: (Long?) -> Unit,
+    onEndOfEpisodeTimer: () -> Unit,
     onExtendSleepTimer: () -> Unit,
     onToggleBedtime: () -> Unit,
 ) {
+    val isEndOfEpisodeChoice = playback.lastSleepTimerChoice == -1
+    val startTimerMinutes = when (playback.lastSleepTimerChoice) {
+        1 -> if (BuildConfig.DEBUG) 1 else 15
+        10 -> 10
+        15 -> 15
+        30 -> 30
+        45 -> 45
+        60 -> 60
+        else -> 15
+    }
+    val timerButtonLabel = when {
+        playback.sleepTimerActive -> "+10 min"
+        isEndOfEpisodeChoice -> "Start end-of-episode timer"
+        else -> "Start $startTimerMinutes min timer"
+    }
     val warm = Color(0xFFB9AD9A)
     Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
         Column(
@@ -423,7 +440,13 @@ private fun BedtimeNowPlaying(
                     )
                     Button(
                         onClick = {
-                            if (playback.sleepTimerActive) onExtendSleepTimer() else onTimer(10L * 60_000L)
+                            if (playback.sleepTimerActive) {
+                                onExtendSleepTimer()
+                            } else if (isEndOfEpisodeChoice) {
+                                onEndOfEpisodeTimer()
+                            } else {
+                                onTimer(startTimerMinutes * 60_000L)
+                            }
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = RoundedCornerShape(18.dp),
@@ -432,7 +455,7 @@ private fun BedtimeNowPlaying(
                             contentColor = warm.copy(alpha = 0.94f),
                         ),
                     ) {
-                        Text("+10 min", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(timerButtonLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
                 }
             }

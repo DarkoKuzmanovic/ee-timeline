@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.eetimeline.playback.PlaybackSettings
+import com.eetimeline.ui.components.MINI_PLAYER_HEIGHT
 import com.eetimeline.ui.theme.Apricot
 import com.eetimeline.ui.theme.MutedCream
 import com.eetimeline.ui.theme.SurfaceRaised
@@ -58,7 +59,7 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 24.dp + MINI_PLAYER_HEIGHT),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Column {

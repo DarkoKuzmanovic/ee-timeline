@@ -51,6 +51,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.LocalTime
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 @OptIn(UnstableApi::class)
@@ -235,15 +236,19 @@ fun EEApp(appGraph: AppGraph) {
         val candidates = curriculum.orderedEpisodeIds().filter { it !in playedIds }
         val durationsMs = curriculum.episodes.mapValues { (_, episode) -> episode.durationSec.toLong() * 1_000L }
         val resumePositionsMs = savedProgress.mapValues { (_, state) -> state.positionMs }
-        val now = LocalTime.now().withSecond(0).withNano(0)
+        val now = ZonedDateTime.now()
         JourneyPlan.values().map { plan ->
             val selection = selectJourneyPlan(candidates, durationsMs, resumePositionsMs, plan, playbackSettings.speed)
             JourneyPlanPreview(
                 plan = plan,
                 storyCount = selection.episodeIds.size,
                 estimatedDurationMs = selection.estimatedRemainingDurationMs,
-                finishTimeLabel = now.plusNanos(selection.estimatedRemainingDurationMs.coerceAtLeast(0L) * 1_000_000L)
-                    .format(DateTimeFormatter.ofPattern("HH:mm")),
+                finishTimeLabel = if (plan == JourneyPlan.JUST_KEEP_GOING) {
+                    ""
+                } else {
+                    now.plusNanos(selection.estimatedRemainingDurationMs.coerceAtLeast(0L) * 1_000_000L)
+                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                },
             )
         }
     }

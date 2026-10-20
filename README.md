@@ -33,6 +33,11 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - [Sleep-session spot chooser](docs/screenshots/bedtime-sleep-session-sheet.png)
 - [Planned queue stop](docs/screenshots/bedtime-plan-stop.png)
 - [Bedtime player after shake extension](docs/screenshots/bedtime-player-shake.png)
+- [Drift-off card at the top of Journey](docs/screenshots/bedtime-journey-priority.png)
+- [Finite journey plan previews](docs/screenshots/bedtime-plan-labels.png)
+- [Bedtime player with remembered timer and active plan](docs/screenshots/bedtime-now-playing-start.png)
+- [Settings list above the mini player](docs/screenshots/bedtime-settings-with-mini-player.png)
+- [Bedtime player with active timer](docs/screenshots/bedtime-now-playing-active-timer.png)
 
 
 ## Curriculum data

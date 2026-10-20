@@ -128,6 +128,54 @@ fun JourneyScreen(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp + MINI_PLAYER_HEIGHT),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
+        if (sleepSession != null && suggestedRewindPoint != null) {
+            item {
+                val title = curriculum.episodes[suggestedRewindPoint.episodeId]?.title ?: suggestedRewindPoint.episodeId
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SurfaceRaised),
+                    shape = RoundedCornerShape(22.dp),
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("A gentle place to pick up", style = MaterialTheme.typography.labelMedium, color = Mint, fontWeight = FontWeight.Bold)
+                        Text(
+                            buildAnnotatedString {
+                                append("You drifted off during ")
+                                withStyle(SpanStyle(fontStyle = FontStyle.Italic, fontWeight = FontWeight.SemiBold)) {
+                                    append(title)
+                                }
+                                append(" — pick up from ${formatPosition(suggestedRewindPoint.positionMs)}?")
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Button(
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onRewind(suggestedRewindPoint)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                        ) {
+                            Text("Rewind there", fontWeight = FontWeight.Bold)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(onClick = { showSleepSpotSheet = true }) {
+                                Text("Choose the spot", color = Apricot)
+                            }
+                            TextButton(onClick = onKeepMyPlace) {
+                                Text("Keep my place", color = MutedCream)
+                            }
+                        }
+                    }
+                }
+            }
+        }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -217,6 +265,7 @@ fun JourneyScreen(
                     Button(
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            if (sleepSession != null) onKeepMyPlace()
                             onContinue()
                         },
                         enabled = ordered.isNotEmpty(),
@@ -253,60 +302,16 @@ fun JourneyScreen(
                                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                             Text(preview.plan.title(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                                             Text(
-                                                "$storyLabel · ~${formatPlanDuration(preview.estimatedDurationMs)} · ends ~${preview.finishTimeLabel}",
+                                                if (preview.plan == JourneyPlan.JUST_KEEP_GOING) {
+                                                    "Until the timer or you stop"
+                                                } else {
+                                                    "$storyLabel · ~${formatPlanDuration(preview.estimatedDurationMs)} · ends ~${preview.finishTimeLabel}"
+                                                },
                                                 style = MaterialTheme.typography.labelSmall,
                                             )
                                         }
                                     },
                                 )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if (sleepSession != null && suggestedRewindPoint != null) {
-            item {
-                val title = curriculum.episodes[suggestedRewindPoint.episodeId]?.title ?: suggestedRewindPoint.episodeId
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = SurfaceRaised),
-                    shape = RoundedCornerShape(22.dp),
-                ) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text("A gentle place to pick up", style = MaterialTheme.typography.labelMedium, color = Mint, fontWeight = FontWeight.Bold)
-                        Text(
-                            buildAnnotatedString {
-                                append("You drifted off during ")
-                                withStyle(SpanStyle(fontStyle = FontStyle.Italic, fontWeight = FontWeight.SemiBold)) {
-                                    append(title)
-                                }
-                                append(" — pick up from ${formatPosition(suggestedRewindPoint.positionMs)}?")
-                            },
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Button(
-                            onClick = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onRewind(suggestedRewindPoint)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                        ) {
-                            Text("Rewind there", fontWeight = FontWeight.Bold)
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TextButton(onClick = { showSleepSpotSheet = true }) {
-                                Text("Choose the spot", color = Apricot)
-                            }
-                            TextButton(onClick = onKeepMyPlace) {
-                                Text("Keep my place", color = MutedCream)
                             }
                         }
                     }
