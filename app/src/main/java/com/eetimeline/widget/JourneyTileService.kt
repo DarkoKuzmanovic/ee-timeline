@@ -2,6 +2,7 @@ package com.eetimeline.widget
 
 import android.content.ComponentName
 import android.content.Context
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
@@ -35,6 +36,14 @@ class JourneyTileService : TileService() {
     private suspend fun refreshTile() {
         val tile = qsTile ?: return
         val data = JourneyWidgetData.load(this)
+        tile.icon = Icon.createWithResource(
+            this,
+            if (data.isPlaying) {
+                com.eetimeline.R.drawable.ic_journey_tile_pause
+            } else {
+                com.eetimeline.R.drawable.ic_journey_tile
+            },
+        )
         tile.state = if (data.isPlaying) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             tile.label = getString(com.eetimeline.R.string.continue_journey)

@@ -4,8 +4,8 @@
     <string name="journey_widget_description">The current or next story, its era, and journey progress.</string>
     <string name="continue_journey">Continue journey</string>
     <string name="journey_widget_preview_heading">YOUR JOURNEY</string>
-    <string name="journey_widget_preview_story">The First Cities</string>
-    <string name="journey_widget_preview_next">THEN · Bronze Age kingdoms</string>
-    <string name="journey_widget_preview_progress">Story 8 of 235</string>
+    <string name="journey_widget_preview_story">China\'s Imperial Dynasties</string>
+    <string name="journey_widget_preview_period">221 BCE–1912</string>
+    <string name="journey_widget_preview_progress">Story 1 of 235</string>
     <string name="journey_widget_preview_unit">UNIT 1</string>
 </resources>

@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.eetimeline.core.Episode
+import com.eetimeline.core.JourneyPlan
 import com.eetimeline.ui.PlaybackUiState
 import com.eetimeline.ui.theme.Apricot
 import com.eetimeline.ui.theme.MutedCream
@@ -226,7 +227,11 @@ fun NowPlayingScreen(
         Text(episode.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(4.dp))
         Text("Everything Everywhere Daily", style = MaterialTheme.typography.bodyMedium, color = MutedCream)
-        if (playback.journeyMode && playback.activeJourneyPlan != null && playback.journeyStoryCount > 0) {
+        if (
+            playback.journeyMode &&
+            playback.activeJourneyPlan?.let { it != JourneyPlan.JUST_KEEP_GOING } == true &&
+            playback.journeyStoryCount > 0
+        ) {
             Text(
                 "Tonight: story ${playback.journeyStoryIndex.coerceAtLeast(1)} of ${playback.journeyStoryCount}",
                 style = MaterialTheme.typography.labelMedium,
@@ -478,7 +483,11 @@ private fun BedtimeNowPlaying(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (playback.journeyMode && playback.activeJourneyPlan != null && playback.journeyStoryCount > 0) {
+                if (
+                    playback.journeyMode &&
+                    playback.activeJourneyPlan?.let { it != JourneyPlan.JUST_KEEP_GOING } == true &&
+                    playback.journeyStoryCount > 0
+                ) {
                     Text(
                         "Tonight: story ${playback.journeyStoryIndex.coerceAtLeast(1)} of ${playback.journeyStoryCount}",
                         style = MaterialTheme.typography.bodySmall,
