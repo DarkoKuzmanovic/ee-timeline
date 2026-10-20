@@ -1,15 +1,21 @@
 package com.eetimeline.playback
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Bundle
 import android.os.Build
+import android.os.Bundle
 import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
+import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import androidx.glance.appwidget.updateAll
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -18,6 +24,7 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
@@ -30,6 +37,10 @@ import com.eetimeline.core.orderedEpisodeIds
 import com.eetimeline.core.selectJourneyPlan
 import com.eetimeline.core.sleepFadeVolume
 import com.eetimeline.data.CurriculumRepository
+import com.eetimeline.widget.JourneySurfaceSnapshot
+import com.eetimeline.widget.JourneySurfaceSnapshotStore
+import com.eetimeline.widget.JourneyTileService
+import com.eetimeline.widget.JourneyWidget
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
@@ -58,7 +69,9 @@ class PlaybackService : MediaSessionService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val preferDownloadedAudio = AtomicBoolean(true)
     private val voiceBoostAudioEffect = VoiceBoostAudioEffect()
-    private lateinit var stateRepository: EpisodeStateRepository
+    private val stateRepositoryDelegate =
+        lazy(LazyThreadSafetyMode.NONE) { EpisodeStateRepository.getInstance(this) }
+    private val stateRepository by stateRepositoryDelegate
     private lateinit var player: ExoPlayer
     private var mediaSession: MediaSession? = null
     private var lastSnapshot: EpisodeProgress? = null
@@ -71,6 +84,7 @@ class PlaybackService : MediaSessionService() {
     private var sleepSessionPersistenceJob: Job? = null
     private var sleepTimerJob: Job? = null
     private var pendingResumeJob: Job? = null
+    private var progressObservationJob: Job? = null
     private var sleepTimerBaseVolume = 1f
     private var lastPublishedRemainingSecond: Long? = null
     private var activeJourneyPlan: JourneyPlan? = null
@@ -110,6 +124,7 @@ class PlaybackService : MediaSessionService() {
                 beginSleepSegment()
                 maybeStartBedtimeTimer()
             }
+            refreshJourneySurfaces()
         }
 
         override fun onAudioSessionIdChanged(audioSessionId: Int) {
@@ -137,6 +152,7 @@ class PlaybackService : MediaSessionService() {
                 player.pause()
                 clearActiveJourneyPlan()
             }
+            refreshJourneySurfaces()
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -170,6 +186,7 @@ class PlaybackService : MediaSessionService() {
                 }
             }
             beginSleepSegment()
+            refreshJourneySurfaces()
         }
 
         override fun onPositionDiscontinuity(
@@ -265,7 +282,6 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
-        stateRepository = EpisodeStateRepository.getInstance(this)
         playbackPreferences = PlaybackPreferences(this)
         sensorManager = getSystemService(SENSOR_SERVICE) as? SensorManager
         accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -284,10 +300,13 @@ class PlaybackService : MediaSessionService() {
                 setHandleAudioBecomingNoisy(true)
                 addListener(playerListener)
             }
-        mediaSession = MediaSession.Builder(this, player)
+        val session = MediaSession.Builder(this, player)
             .setCallback(sleepTimerSessionCallback)
             .build()
+        mediaSession = session
+        addSession(session)
         publishSleepTimerState(force = true)
+        refreshJourneySurfaces()
 
         serviceScope.launch {
             playbackPreferences.settings.collect { settings ->
@@ -304,6 +323,7 @@ class PlaybackService : MediaSessionService() {
                 if (!wasLoaded && player.isPlaying) maybeStartBedtimeTimer()
             }
         }
+
         serviceScope.launch {
             while (isActive) {
                 delay(POSITION_SAVE_INTERVAL_MS)
@@ -313,23 +333,89 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == JourneyPlaybackProtocol.ACTION_PLAY_JOURNEY) {
-            val rawPlan = intent.getStringExtra(JourneyPlaybackProtocol.KEY_PLAN)
+        val action = intent?.action
+        if (action == JourneyPlaybackProtocol.ACTION_PLAY_JOURNEY ||
+            action == JourneyPlaybackProtocol.ACTION_TOGGLE_JOURNEY
+        ) {
+            if (!player.isPlaying) showStartingJourneyNotification()
+            startProgressObservation()
+        }
+        if (action == JourneyPlaybackProtocol.ACTION_PLAY_JOURNEY) {
+            val rawPlan = intent?.getStringExtra(JourneyPlaybackProtocol.KEY_PLAN)
             val plan = if (rawPlan == null) {
                 JourneyPlan.JUST_KEEP_GOING
             } else {
                 JourneyPlan.values().firstOrNull { it.name == rawPlan }
             }
             if (plan != null) {
-                serviceScope.launch { runCatching { playJourney(plan) } }
+                serviceScope.launch {
+                    val started = runCatching { playJourney(plan) }.getOrDefault(false)
+                    if (!started) stopEmptyJourneyStart(startId)
+                }
+            } else {
+                stopEmptyJourneyStart(startId)
             }
-        } else if (BuildConfig.DEBUG && intent?.action == ACTION_DEBUG_START_SHORT_SLEEP_TIMER) {
+        } else if (action == JourneyPlaybackProtocol.ACTION_TOGGLE_JOURNEY) {
+            serviceScope.launch {
+                val started = runCatching { toggleJourney() }.getOrDefault(false)
+                if (!started) stopEmptyJourneyStart(startId)
+            }
+        } else if (BuildConfig.DEBUG && action == ACTION_DEBUG_START_SHORT_SLEEP_TIMER) {
             startDebugShortSleepTimer()
         }
         return super.onStartCommand(intent, flags, startId)
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
+    private fun startProgressObservation() {
+        if (progressObservationJob?.isActive == true) return
+        progressObservationJob = serviceScope.launch {
+            stateRepository.observeAll().collect {
+                refreshJourneySurfaces()
+            }
+        }
+    }
+
+    private fun showStartingJourneyNotification() {
+        val channelId = DefaultMediaNotificationProvider.DEFAULT_CHANNEL_ID
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        if (notificationManager.getNotificationChannel(channelId) == null) {
+            notificationManager.createNotificationChannel(
+                NotificationChannel(
+                    channelId,
+                    getString(DefaultMediaNotificationProvider.DEFAULT_CHANNEL_NAME_RESOURCE_ID),
+                    NotificationManager.IMPORTANCE_LOW,
+                ),
+            )
+        }
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle("Starting journey")
+            .setContentText("Preparing your stories")
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .build()
+        ServiceCompat.startForeground(
+            this,
+            DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID,
+            notification,
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
+        )
+    }
+
+    private fun stopEmptyJourneyStart(startId: Int) {
+        if (player.mediaItemCount != 0) {
+            if (!player.isPlaying) stopForeground(android.app.Service.STOP_FOREGROUND_REMOVE)
+            return
+        }
+        stopForeground(android.app.Service.STOP_FOREGROUND_REMOVE)
+        if (activeSleepTimer == null) stopSelf(startId)
+    }
+
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+        startProgressObservation()
+        return mediaSession
+    }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         persistCurrentPosition()
@@ -341,7 +427,7 @@ class PlaybackService : MediaSessionService() {
         unregisterShakeSensor()
         voiceBoostAudioEffect.release()
         val finalSnapshot = captureCurrentPosition() ?: lastSnapshot
-        if (::stateRepository.isInitialized && finalSnapshot != null) {
+        if (stateRepositoryDelegate.isInitialized() && finalSnapshot != null) {
             runBlocking(Dispatchers.IO) {
                 stateRepository.saveProgress(
                     finalSnapshot.episodeId,
@@ -352,6 +438,10 @@ class PlaybackService : MediaSessionService() {
         }
         sleepSessionPersistenceJob?.let { persistenceJob ->
             runBlocking(Dispatchers.IO) { persistenceJob.join() }
+        }
+        refreshJourneySurfaces(currentEpisodeId = null, playing = false, active = false, scheduleWidget = false)
+        CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
+            JourneyWidget().updateAll(applicationContext)
         }
         mediaSession?.release()
         mediaSession = null
@@ -374,8 +464,8 @@ class PlaybackService : MediaSessionService() {
         val result = SettableFuture.create<SessionResult>()
         serviceScope.launch {
             val resultCode = try {
-                playJourney(plan)
-                SessionResult.RESULT_SUCCESS
+                if (playJourney(plan)) SessionResult.RESULT_SUCCESS
+                else SessionResult.RESULT_ERROR_BAD_VALUE
             } catch (_: Exception) {
                 SessionResult.RESULT_ERROR_UNKNOWN
             }
@@ -384,7 +474,16 @@ class PlaybackService : MediaSessionService() {
         return result
     }
 
-    private suspend fun playJourney(plan: JourneyPlan) {
+    private suspend fun toggleJourney(): Boolean {
+        if (player.currentMediaItem != null && player.playbackState != Player.STATE_ENDED) {
+            if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            if (player.isPlaying) player.pause() else player.play()
+            return true
+        }
+        return playJourney(JourneyPlan.JUST_KEEP_GOING)
+    }
+
+    private suspend fun playJourney(plan: JourneyPlan): Boolean {
         val curriculum = CurriculumRepository(this).load()
         val statesById = stateRepository.observeAll().first().associateBy { it.episodeId }
         val candidates = curriculum.orderedEpisodeIds().filter { episodeId ->
@@ -397,7 +496,7 @@ class PlaybackService : MediaSessionService() {
             statesById[episodeId]?.positionMs?.coerceAtLeast(0L) ?: 0L
         }
         val selection = selectJourneyPlan(candidates, durationsMs, resumePositionsMs, plan, player.playbackParameters.speed)
-        if (selection.episodeIds.isEmpty()) return
+        if (selection.episodeIds.isEmpty()) return false
 
         val mediaItems = selection.episodeIds.map { episodeId ->
             val episode = curriculum.episodes.getValue(episodeId)
@@ -419,7 +518,9 @@ class PlaybackService : MediaSessionService() {
         player.setMediaItems(mediaItems, 0, startPositionMs)
         player.prepare()
         player.play()
+        refreshJourneySurfaces()
         publishSleepTimerState(force = true)
+        return true
     }
 
     private fun clearActiveJourneyPlan() {
@@ -427,6 +528,28 @@ class PlaybackService : MediaSessionService() {
         activeJourneyPlan = null
         journeyEpisodeIds = emptyList()
         publishSleepTimerState(force = true)
+        refreshJourneySurfaces()
+    }
+    private fun refreshJourneySurfaces(
+        currentEpisodeId: String? = player.currentMediaItem?.mediaId?.takeUnless {
+            player.playbackState == Player.STATE_ENDED
+        },
+        playing: Boolean = player.isPlaying,
+        active: Boolean = activeJourneyPlan != null,
+        scheduleWidget: Boolean = true,
+    ) {
+        JourneySurfaceSnapshotStore.publish(
+            this,
+            JourneySurfaceSnapshot(
+                currentEpisodeId = currentEpisodeId,
+                isPlaying = playing,
+                activeJourney = active,
+            ),
+        )
+        if (scheduleWidget) {
+            serviceScope.launch { JourneyWidget().updateAll(this@PlaybackService) }
+        }
+        JourneyTileService.requestRefresh(this)
     }
 
     private fun captureCurrentPosition(): EpisodeProgress? {
@@ -486,7 +609,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun persist(snapshot: EpisodeProgress, completed: Boolean = false) {
-        if (!::stateRepository.isInitialized) return
+        if (!stateRepositoryDelegate.isInitialized()) return
         serviceScope.launch {
             stateRepository.saveProgress(
                 snapshot.episodeId,

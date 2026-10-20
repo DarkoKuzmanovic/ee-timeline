@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.SettableFuture
 object JourneyPlaybackProtocol {
     const val ACTION_PLAY_JOURNEY = "com.eetimeline.playback.action.PLAY_JOURNEY"
     const val ACTION_EXTEND_SLEEP_TIMER = "com.eetimeline.playback.action.EXTEND_SLEEP_TIMER"
+    const val ACTION_TOGGLE_JOURNEY = "com.eetimeline.playback.action.TOGGLE_JOURNEY"
     const val KEY_PLAN = "journey_plan"
     const val KEY_ACTIVE_PLAN = "active_journey_plan"
     /** One-based index within the active queue, or zero when no journey is active. */
@@ -93,19 +94,25 @@ object JourneyPlaybackCommands {
     }
 
     /**
-     * Returns a service-targeted PendingIntent suitable for a widget click or a tile click handler.
-     * Widgets can pass it to RemoteViews.setOnClickPendingIntent; tile services can call send() from
-     * their click callback. The service loads curriculum/progress and starts playback itself.
+     * Builds a service-targeted PendingIntent that starts the selected journey, or toggles the
+     * active journey when [toggleActiveJourney] is true.
      */
     fun createPendingIntent(
         context: Context,
         plan: JourneyPlan? = null,
         requestCode: Int = DEFAULT_REQUEST_CODE + (plan?.ordinal ?: -1),
+        toggleActiveJourney: Boolean = false,
     ): PendingIntent {
         val intent = Intent(context, PlaybackService::class.java)
-            .setAction(JourneyPlaybackProtocol.ACTION_PLAY_JOURNEY)
+            .setAction(
+                if (toggleActiveJourney) {
+                    JourneyPlaybackProtocol.ACTION_TOGGLE_JOURNEY
+                } else {
+                    JourneyPlaybackProtocol.ACTION_PLAY_JOURNEY
+                },
+            )
             .putExtra(JourneyPlaybackProtocol.KEY_PLAN, plan?.name)
-        return PendingIntent.getService(
+        return PendingIntent.getForegroundService(
             context,
             requestCode,
             intent,

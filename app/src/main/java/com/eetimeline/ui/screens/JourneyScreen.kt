@@ -20,8 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -63,6 +61,7 @@ import com.eetimeline.ui.JourneyPlanPreview
 import com.eetimeline.ui.PlaybackUiState
 import com.eetimeline.ui.components.MINI_PLAYER_HEIGHT
 import com.eetimeline.ui.components.EpisodeRow
+import com.eetimeline.ui.components.MorphingPlayPauseButton
 import com.eetimeline.ui.components.SleepSessionSheet
 import com.eetimeline.ui.theme.Apricot
 import com.eetimeline.ui.theme.MutedCream
@@ -280,28 +279,20 @@ fun JourneyScreen(
                     unit?.let {
                         Text("Next stop: ${it.title}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                     }
-                    Button(
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    MorphingPlayPauseButton(
+                        isPlaying = playback.journeyMode && playback.isPlaying,
+                        onToggle = {
                             if (sleepSession != null) onKeepMyPlace()
                             onContinue()
                         },
-                        enabled = ordered.isNotEmpty(),
                         modifier = Modifier.fillMaxWidth().height(58.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Apricot, contentColor = MaterialTheme.colorScheme.onPrimary),
-                    ) {
-                        androidx.compose.material3.Icon(
-                            if (playback.journeyMode && playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = null,
-                        )
-                        Text(
-                            if (playback.journeyMode && playback.isPlaying) "Pause your journey" else "Continue the journey",
-                            modifier = Modifier.padding(start = 8.dp),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
+                        enabled = ordered.isNotEmpty(),
+                        containerColor = Apricot,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        iconSize = 24.dp,
+                        label = if (playback.journeyMode && playback.isPlaying) "Pause your journey" else "Continue the journey",
+                        description = if (playback.journeyMode && playback.isPlaying) "Pause your journey" else "Continue the journey",
+                    )
                     if (planPreviews.isNotEmpty()) {
                         Text("Tonight’s plan", style = MaterialTheme.typography.labelMedium, color = MutedCream, fontWeight = FontWeight.Bold)
                         Row(
@@ -352,7 +343,13 @@ fun JourneyScreen(
                     Text("Up next", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     Text("In curriculum order, one story at a time.", style = MaterialTheme.typography.bodySmall, color = MutedCream)
                 }
-                OutlinedButton(onClick = { onDownloadNext(3) }, shape = RoundedCornerShape(15.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onDownloadNext(3)
+                    },
+                    shape = RoundedCornerShape(15.dp),
+                ) {
                     androidx.compose.material3.Icon(Icons.Filled.Download, contentDescription = null, tint = Apricot)
                     Text("Next 3", modifier = Modifier.padding(start = 6.dp))
                 }

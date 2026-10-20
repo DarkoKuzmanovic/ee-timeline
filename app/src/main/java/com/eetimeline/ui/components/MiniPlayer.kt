@@ -10,10 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -22,8 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,7 +36,6 @@ fun MiniPlayer(
     onPlayPause: () -> Unit,
 ) {
     val fraction = if (playback.durationMs <= 0L) 0f else (playback.positionMs.toFloat() / playback.durationMs).coerceIn(0f, 1f)
-    val haptics = LocalHapticFeedback.current
     val tint = if (playback.bedtimeMode) Color(0xFFB9AD9A).copy(alpha = 0.72f) else Apricot
     val surfaceColor = if (playback.bedtimeMode) Color.Black else MaterialTheme.colorScheme.surfaceVariant
     Surface(color = surfaceColor, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().height(MINI_PLAYER_HEIGHT).clickable(onClick = onOpen)) {
@@ -77,19 +71,14 @@ fun MiniPlayer(
                         color = if (playback.bedtimeMode) tint.copy(alpha = 0.66f) else MutedCream,
                     )
                 }
-                IconButton(
-                    onClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onPlayPause()
-                    },
+                MorphingPlayPauseButton(
+                    isPlaying = playback.isPlaying,
+                    onToggle = onPlayPause,
                     modifier = Modifier.size(44.dp),
-                ) {
-                    Icon(
-                        if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (playback.isPlaying) "Pause" else "Play",
-                        tint = tint,
-                    )
-                }
+                    containerColor = if (playback.bedtimeMode) tint.copy(alpha = 0.16f) else Apricot,
+                    contentColor = if (playback.bedtimeMode) tint else MaterialTheme.colorScheme.onPrimary,
+                    iconSize = 22.dp,
+                )
             }
         }
     }

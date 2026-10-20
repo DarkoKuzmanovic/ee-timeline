@@ -29,6 +29,11 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - [Unit detail](docs/screenshots/unit-detail.png)
 - [Episode sheet](docs/screenshots/episode-sheet.png)
 - [Now Playing with sleep timer](docs/screenshots/now-playing.png)
+- [Now Playing — warm artwork palette](docs/screenshots/now-playing-era-1.png)
+- [Now Playing — blue artwork palette](docs/screenshots/now-playing-era-2.png)
+- [Mini player](docs/screenshots/mini-player.png)
+- [Journey widget picker preview](docs/screenshots/widget-picker-preview.png)
+- [Continue journey Quick Settings tile](docs/screenshots/quick-settings-tile.png)
 
 - [Bedtime player](docs/screenshots/bedtime-player.png)
 - [Bedtime settings](docs/screenshots/bedtime-settings.png)
@@ -42,6 +47,12 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - [Bedtime player with remembered timer and active plan](docs/screenshots/bedtime-now-playing-start.png)
 - [Settings list above the mini player](docs/screenshots/bedtime-settings-with-mini-player.png)
 - [Bedtime player with active timer](docs/screenshots/bedtime-now-playing-active-timer.png)
+
+## Home widget and Quick Settings tile
+
+Add the **EE Timeline — Journey** widget from the home-screen widget picker to see the current or next story, its era, and journey progress. Tap the play/pause control to toggle the journey without opening the app; tap elsewhere on the widget to open EE Timeline.
+
+Add the **Continue journey** tile from Android's Quick Settings edit screen for one-tap playback control. The tile shows the current story and toggles the active journey, or starts the next story when no journey is active.
 
 
 ## Curriculum data

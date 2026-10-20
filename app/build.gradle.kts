@@ -69,6 +69,8 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.palette)
 
     testImplementation(libs.junit)
     debugImplementation(libs.compose.ui.tooling)

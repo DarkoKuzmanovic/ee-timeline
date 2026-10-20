@@ -55,6 +55,8 @@ import com.eetimeline.ui.screens.TimelineScreen
 import com.eetimeline.ui.screens.UnitDetailScreen
 import com.eetimeline.ui.screens.UnitsScreen
 import com.eetimeline.ui.theme.MutedCream
+import com.eetimeline.ui.theme.Apricot
+import com.eetimeline.ui.theme.unitColor
 private const val ROUTE_JOURNEY = "journey"
 private const val ROUTE_TIMELINE = "timeline"
 private const val ROUTE_UNITS = "units"
@@ -107,6 +109,11 @@ fun EEAppContent(state: EEAppState, actions: EEAppActions) {
     val route = navEntry?.destination?.route
     var selectedEpisode by remember { mutableStateOf<Episode?>(null) }
     val episode = state.playback.currentEpisodeId?.let(state.curriculum.episodes::get)
+    val episodeUnitAccent = episode?.let { current ->
+        state.curriculum.units.firstOrNull { unit ->
+            unit.topics.any { topic -> topic.groups.any { current.id in it.episodeIds } }
+        }?.let { unitColor(it.number) }
+    } ?: Apricot
     val ordered = state.curriculum.orderedEpisodeIds()
     val upcoming = ordered.asSequence()
         .filter { state.progress[it]?.played != true }
@@ -232,6 +239,7 @@ fun EEAppContent(state: EEAppState, actions: EEAppActions) {
                     episode = episode,
                     playback = state.playback,
                     badge = episode?.let { episodeBadge(state.curriculum, it.id) } ?: "Everything Everywhere Daily",
+                    unitAccent = episodeUnitAccent,
                     played = episode?.let { state.progress[it.id]?.played } == true,
                     downloaded = episode?.let { state.progress[it.id]?.downloaded } == true,
                     downloadInProgress = episode?.let { state.progress[it.id]?.downloadInProgress } == true,
@@ -272,7 +280,10 @@ fun EEAppContent(state: EEAppState, actions: EEAppActions) {
                 navController.navigate(ROUTE_NOW_PLAYING)
             },
             onQueue = { actions.queueEpisode(selected); selectedEpisode = null },
-            onDownload = { actions.toggleDownload(selected) },
+            onDownload = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                actions.toggleDownload(selected)
+            },
             onTogglePlayed = {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 actions.togglePlayed(selected)
