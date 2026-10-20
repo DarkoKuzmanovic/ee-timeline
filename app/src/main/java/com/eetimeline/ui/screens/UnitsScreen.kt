@@ -18,15 +18,27 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Agriculture
+import androidx.compose.material.icons.filled.Castle
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Factory
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Sailing
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -74,7 +86,8 @@ private fun UnitCard(
     val ids = unit.topics.flatMap { topic -> topic.groups.flatMap { it.episodeIds } }
     val played = ids.count { progress[it]?.played == true }
     val fraction = if (ids.isEmpty()) 0f else played.toFloat() / ids.size
-    val animated by animateFloatAsState(fraction, label = "unit-${unit.number}-progress")
+    val animated by animateFloatAsState(fraction, label = "unit-progress-${unit.number}")
+    val completed = ids.isNotEmpty() && played == ids.size
     val color = unitColor(unit.number)
 
     Card(
@@ -103,7 +116,20 @@ private fun UnitCard(
                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round),
                     )
                 }
-                Text("${unit.number}", style = MaterialTheme.typography.titleLarge, color = color, fontWeight = FontWeight.Bold)
+                Icon(
+                    imageVector = eraIcon(unit.number),
+                    contentDescription = unit.title,
+                    tint = color,
+                    modifier = Modifier.size(24.dp),
+                )
+                if (completed) {
+                    Icon(
+                        imageVector = Icons.Filled.CheckCircle,
+                        contentDescription = "Completed",
+                        tint = color,
+                        modifier = Modifier.align(Alignment.TopEnd).size(19.dp),
+                    )
+                }
             }
             Column(Modifier.weight(1f).padding(start = 16.dp, end = 8.dp)) {
                 Text("UNIT ${unit.number}  ·  ${unit.period}", style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.Bold)
@@ -115,4 +141,16 @@ private fun UnitCard(
             androidx.compose.material3.Icon(Icons.Filled.ArrowForward, contentDescription = "Open ${unit.title}", tint = MutedCream)
         }
     }
+}
+private fun eraIcon(unitNumber: Int): ImageVector = when (unitNumber) {
+    1 -> Icons.Filled.Agriculture
+    2 -> Icons.Filled.AccountBalance
+    3 -> Icons.Filled.Castle
+    4 -> Icons.Filled.Sailing
+    5 -> Icons.Filled.Lightbulb
+    6 -> Icons.Filled.Factory
+    7 -> Icons.Filled.Train
+    8 -> Icons.Filled.Science
+    9 -> Icons.Filled.RocketLaunch
+    else -> Icons.Filled.MenuBook
 }

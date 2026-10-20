@@ -20,6 +20,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 - [Journey](docs/screenshots/journey.png)
 - [Timeline](docs/screenshots/timeline.png)
+- [Timeline — modern era](docs/screenshots/timeline-modern.png)
 - [Units](docs/screenshots/units.png)
 - [Unit detail](docs/screenshots/unit-detail.png)
 - [Episode sheet](docs/screenshots/episode-sheet.png)

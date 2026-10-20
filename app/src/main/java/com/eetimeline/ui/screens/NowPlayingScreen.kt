@@ -2,6 +2,7 @@ package com.eetimeline.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -205,11 +206,28 @@ fun NowPlayingScreen(
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(onClick = onMarkPlayed, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp)) {
+            OutlinedButton(
+                onClick = onMarkPlayed,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(16.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+            ) {
                 Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text(if (played) "Mark unplayed" else "Mark played", modifier = Modifier.padding(start = 7.dp))
+                Text(
+                    if (played) "Mark unplayed" else "Mark played",
+                    modifier = Modifier.padding(start = 7.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            OutlinedButton(onClick = onDownload, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp)) {
+            OutlinedButton(
+                onClick = onDownload,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(16.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+            ) {
                 Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text(
                     when {
@@ -219,6 +237,10 @@ fun NowPlayingScreen(
                         else -> "Download"
                     },
                     modifier = Modifier.padding(start = 7.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             IconButton(onClick = onOpenWebsite) { Icon(Icons.Filled.OpenInNew, contentDescription = "Open episode website", tint = MutedCream) }

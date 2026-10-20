@@ -1,52 +1,97 @@
 package com.eetimeline.ui.screens
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Agriculture
+import androidx.compose.material.icons.filled.Castle
+import androidx.compose.material.icons.filled.Factory
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Sailing
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Train
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.eetimeline.core.Curriculum
+import com.eetimeline.core.CurriculumUnit
 import com.eetimeline.core.Episode
-import com.eetimeline.core.timelineX
 import com.eetimeline.core.orderedEpisodeIds
+import com.eetimeline.core.timelineScale
+import com.eetimeline.core.timelineX
 import com.eetimeline.ui.EpisodeProgress
 import com.eetimeline.ui.theme.Apricot
 import com.eetimeline.ui.theme.MutedCream
 import com.eetimeline.ui.theme.unitColor
 import java.util.Calendar
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
-private data class TimelineDot(val episode: Episode, val x: Float, val y: Float)
+private val UNIT_LABEL_WIDTH = 116.dp
+private val TIMELINE_MIN_WIDTH = 1_120.dp
+private val PLOT_HORIZONTAL_PADDING = 18.dp
+private val DOT_STACK_SPACING = 11.dp
+private val DOT_RADIUS = 4.3.dp
+private val DOT_HIT_RADIUS = 24.dp
+private val AXIS_HEIGHT = 50.dp
+
+private data class TimelineDot(val episode: Episode, val x: Float, val track: Int)
+
+private data class TimelineLane(
+    val unit: CurriculumUnit,
+    val dots: List<TimelineDot>,
+    val height: Dp,
+)
 
 @Composable
 fun TimelineScreen(
@@ -58,128 +103,406 @@ fun TimelineScreen(
     val allEpisodes = remember(curriculum) {
         curriculum.orderedEpisodeIds().mapNotNull(curriculum.episodes::get)
     }
-    val episodeUnits = remember(curriculum) {
-        buildMap {
-            curriculum.units.forEach { unit ->
-                unit.topics.forEach { topic ->
-                    topic.groups.forEach { group -> group.episodeIds.forEach { put(it, unit.number) } }
-                }
-            }
+    val laneSources = remember(curriculum) {
+        curriculum.units.map { unit ->
+            val episodes = unit.topics
+                .flatMap { topic -> topic.groups.flatMap { it.episodeIds } }
+                .mapNotNull(curriculum.episodes::get)
+            unit to episodes
         }
     }
-    val minYear = min(1200, allEpisodes.minOfOrNull { it.approxYear } ?: 1200)
-    val maxYear = max(Calendar.getInstance().get(Calendar.YEAR), allEpisodes.maxOfOrNull { it.approxYear } ?: 2026)
-    val timelineWidth = 1500.dp
+    val presentYear = remember { Calendar.getInstance().get(Calendar.YEAR) }
+    val scale = remember(allEpisodes, presentYear) {
+        timelineScale(allEpisodes.map(Episode::approxYear), presentYear)
+    }
+    val targetEpisode = remember(allEpisodes, currentEpisodeId, progress) {
+        allEpisodes.firstOrNull { it.id == currentEpisodeId }
+            ?: allEpisodes.firstOrNull { progress[it.id]?.played != true }
+    }
     val scroll = rememberScrollState()
-    var canvasPixelSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
-    val dots = remember(allEpisodes, minYear, maxYear, canvasPixelSize) {
-        if (canvasPixelSize.width == 0 || canvasPixelSize.height == 0) {
-            emptyList()
-        } else {
-            timelineDots(allEpisodes, minYear, maxYear, canvasPixelSize.width.toFloat(), canvasPixelSize.height.toFloat())
+    val verticalScroll = rememberScrollState()
+    var canvasPixelSize by remember { mutableStateOf(IntSize.Zero) }
+    var viewportWidthPx by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    val plotPaddingPx = with(density) { PLOT_HORIZONTAL_PADDING.toPx() }
+    val dotSpacingPx = with(density) { (DOT_RADIUS * 2 + 2.dp).toPx() }
+    val laneLayouts = remember(laneSources, scale, canvasPixelSize.width, density) {
+        laneSources.map { (unit, episodes) ->
+            val dots = if (canvasPixelSize.width == 0) {
+                emptyList()
+            } else {
+                timelineDots(
+                    episodes = episodes,
+                    scale = scale,
+                    width = canvasPixelSize.width.toFloat(),
+                    horizontalPadding = plotPaddingPx,
+                    minimumSpacing = dotSpacingPx,
+                )
+            }
+            val trackCount = dots.maxOfOrNull { it.track + 1 } ?: 1
+            TimelineLane(unit, dots, laneHeight(trackCount))
         }
     }
-    val tickLabels = remember(minYear, maxYear) {
-        listOf(minYear, 1200, 1450, 1750, maxYear).distinct().map { year ->
-            year to if (year < 0) "${-year} BCE" else year.toString()
-        }
-    }
-    val unitLabels = remember(curriculum) { curriculum.units.associate { it.number to it.number.toString() } }
-    val textPaint = remember { android.graphics.Paint().apply { isAntiAlias = true } }
-    val pulse by rememberInfiniteTransition(label = "timeline-current-episode").animateFloat(
+    val axisPaint = remember { android.graphics.Paint().apply { isAntiAlias = true } }
+    val pulse by rememberInfiniteTransition(label = "timeline-current-item").animateFloat(
         initialValue = 0.88f,
         targetValue = 1.18f,
         animationSpec = infiniteRepeatable(tween(900), repeatMode = RepeatMode.Reverse),
         label = "timeline-current-pulse",
     )
 
-    Column(Modifier.fillMaxSize().padding(top = 20.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        Modifier.fillMaxSize().padding(top = 20.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         Column(Modifier.padding(horizontal = 20.dp)) {
             Text("The long view", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
-            Text("Stories placed across the centuries. Earlier years have a little less room.", style = MaterialTheme.typography.bodyMedium, color = MutedCream)
+            Text(
+                "Nine eras, laid out across the centuries. Swipe the timeline to wander.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MutedCream,
+            )
         }
-        androidx.compose.foundation.layout.Box(Modifier.weight(1f).horizontalScroll(scroll)) {
-            Canvas(
-                modifier = Modifier.width(timelineWidth).fillMaxSize()
-                    .onSizeChanged { canvasPixelSize = it }
-                    .pointerInput(dots) {
-                        detectTapGestures { tap ->
-                            dots.minByOrNull { dot -> distanceSquared(tap, Offset(dot.x, dot.y)) }
-                                ?.takeIf { distanceSquared(tap, Offset(it.x, it.y)) < 42f * 42f }
-                                ?.let { onEpisodeClick(it.episode) }
-                        }
-                    },
+
+        BoxWithConstraints(Modifier.weight(1f).padding(horizontal = 16.dp)) {
+            val timelineWidth = maxOf(TIMELINE_MIN_WIDTH, maxWidth - UNIT_LABEL_WIDTH)
+            val timelineWidthPx = with(density) { timelineWidth.toPx() }
+            val plotWidthPx = (timelineWidthPx - plotPaddingPx * 2).coerceAtLeast(0f)
+            val axisTicks = remember(scale, timelineWidth, density) {
+                adaptiveTimelineTicks(
+                    scale = scale,
+                    plotWidth = plotWidthPx,
+                    minimumSpacing = with(density) { 64.dp.toPx() },
+                ).map { year -> year to yearLabel(year) }
+            }
+
+            LaunchedEffect(
+                targetEpisode?.id,
+                canvasPixelSize.width,
+                viewportWidthPx,
+                timelineWidth,
             ) {
-                val left = 38.dp.toPx()
-                val right = size.width - 36.dp.toPx()
-                val width = right - left
-                val baseline = size.height * 0.56f
-                val pxHeight = size.height
-                textPaint.textSize = 13.dp.toPx()
-
-                if (minYear < 1200) {
-                    textPaint.color = android.graphics.Color.rgb(185, 178, 168)
-                    drawContext.canvas.nativeCanvas.drawText("BEFORE 1200", left, 18.dp.toPx(), textPaint)
+                if (targetEpisode != null && canvasPixelSize.width > 0 && viewportWidthPx > 0) {
+                    val targetX = plotPaddingPx +
+                        timelineX(targetEpisode.approxYear, scale) * plotWidthPx
+                    val targetScroll = (targetX - viewportWidthPx / 2f)
+                        .roundToInt()
+                        .coerceIn(0, scroll.maxValue)
+                    scroll.scrollTo(targetScroll)
                 }
-                // Era spans follow the curriculum's unit ranges, overlaid on one continuous chronology.
-                curriculum.units.forEach { unit ->
-                    val x1 = left + timelineX(unit.startYear, minYear, maxYear) * width
-                    val x2 = left + timelineX(unit.endYear, minYear, maxYear) * width
-                    val eraTop = 28.dp.toPx()
-                    drawRoundRect(
-                        color = unitColor(unit.number).copy(alpha = 0.15f),
-                        topLeft = Offset(min(x1, x2), eraTop),
-                        size = androidx.compose.ui.geometry.Size(max(9.dp.toPx(), abs(x2 - x1)), pxHeight * 0.74f),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx()),
-                    )
-                    drawContext.canvas.nativeCanvas.drawText(unitLabels[unit.number] ?: unit.number.toString(), min(x1, x2) + 8.dp.toPx(), eraTop + 22.dp.toPx(), textPaint.apply { color = unitColor(unit.number).toArgb() })
-                }
+            }
 
-                drawLine(
-                    color = Color(0xFF656A75),
-                    start = Offset(left, baseline),
-                    end = Offset(right, baseline),
-                    strokeWidth = 2.dp.toPx(),
-                )
-                tickLabels.forEach { (year, label) ->
-                    val x = left + timelineX(year, minYear, maxYear) * width
-                    drawLine(Color(0xFF777C86), Offset(x, baseline - 7.dp.toPx()), Offset(x, baseline + 7.dp.toPx()), 1.dp.toPx())
-                    textPaint.color = android.graphics.Color.rgb(185, 178, 168)
-                    drawContext.canvas.nativeCanvas.drawText(label, x + 4.dp.toPx(), baseline + 28.dp.toPx(), textPaint)
-                }
-
-                dots.forEach { dot ->
-                    val eraColor = unitColor(episodeUnits[dot.episode.id] ?: 1)
-                    val played = progress[dot.episode.id]?.played == true
-                    val isCurrent = currentEpisodeId == dot.episode.id
-                    if (isCurrent) {
-                        drawCircle(Apricot.copy(alpha = 0.2f), radius = 14.dp.toPx() * pulse, center = Offset(dot.x, dot.y))
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier.fillMaxWidth().height(AXIS_HEIGHT),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        Modifier.width(UNIT_LABEL_WIDTH).padding(end = 8.dp),
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(
+                            "YEAR",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MutedCream,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text("then → now", style = MaterialTheme.typography.labelSmall, color = MutedCream)
                     }
-                    val radius = if (isCurrent) 6.dp.toPx() else 4.3.dp.toPx()
-                    if (played) {
-                        drawCircle(eraColor, radius = radius, center = Offset(dot.x, dot.y))
-                    } else {
-                        drawCircle(eraColor.copy(alpha = 0.8f), radius = radius, center = Offset(dot.x, dot.y), style = Stroke(width = 1.5.dp.toPx()))
+                    Box(
+                        Modifier.weight(1f)
+                            .fillMaxHeight()
+                            .onSizeChanged { viewportWidthPx = it.width }
+                            .horizontalScroll(scroll),
+                    ) {
+                        Canvas(
+                            Modifier.width(timelineWidth)
+                                .height(AXIS_HEIGHT)
+                                .onSizeChanged { canvasPixelSize = it },
+                        ) {
+                            val left = PLOT_HORIZONTAL_PADDING.toPx()
+                            val right = size.width - left
+                            val plotWidth = right - left
+                            val ticks = axisTicks
+                            val axisY = 10.dp.toPx()
+
+                            drawLine(
+                                color = Color(0xFF656A75),
+                                start = Offset(left, axisY),
+                                end = Offset(right, axisY),
+                                strokeWidth = 1.dp.toPx(),
+                            )
+                            axisPaint.textSize = 11.sp.toPx()
+                            axisPaint.color = android.graphics.Color.rgb(185, 178, 168)
+                            ticks.forEach { (year, label) ->
+                                val x = left + timelineX(year, scale) * plotWidth
+                                drawLine(
+                                    color = Color(0xFF777C86),
+                                    start = Offset(x, axisY - 4.dp.toPx()),
+                                    end = Offset(x, axisY + 5.dp.toPx()),
+                                    strokeWidth = 1.dp.toPx(),
+                                )
+                                val labelWidth = axisPaint.measureText(label)
+                                val labelX = (x - labelWidth / 2f).coerceIn(left, right - labelWidth)
+                                drawContext.canvas.nativeCanvas.drawText(
+                                    label,
+                                    labelX,
+                                    size.height - 3.dp.toPx(),
+                                    axisPaint,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Column(
+                    Modifier.weight(1f).fillMaxWidth().verticalScroll(verticalScroll),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    laneLayouts.forEach { lane ->
+                        Row(
+                            Modifier.fillMaxWidth().height(lane.height),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(
+                                Modifier.width(UNIT_LABEL_WIDTH)
+                                    .height(lane.height)
+                                    .padding(end = 8.dp),
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Surface(
+                                    color = unitColor(lane.unit.number).copy(alpha = 0.19f),
+                                    contentColor = unitColor(lane.unit.number),
+                                    shape = MaterialTheme.shapes.small,
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = timelineEraIcon(lane.unit.number),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                        Text(
+                                            "UNIT ${lane.unit.number}",
+                                            modifier = Modifier.padding(start = 5.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(3.dp))
+                                Text(
+                                    lane.unit.title,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 10.sp,
+                                        lineHeight = 12.sp,
+                                    ),
+                                    color = MutedCream,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            Box(
+                                Modifier.weight(1f)
+                                    .fillMaxHeight()
+                                    .onSizeChanged { viewportWidthPx = it.width }
+                                    .horizontalScroll(scroll),
+                            ) {
+                                Canvas(
+                                    Modifier.width(timelineWidth)
+                                        .height(lane.height)
+                                        .pointerInput(lane.dots) {
+                                            val centerY = laneCenterY(lane, density)
+                                            val stackSpacingPx = with(density) { DOT_STACK_SPACING.toPx() }
+                                            val hitRadiusPx = with(density) { DOT_HIT_RADIUS.toPx() }
+                                            val hitRadiusSquared = hitRadiusPx * hitRadiusPx
+                                            detectTapGestures { tap ->
+                                                var nearestDot: TimelineDot? = null
+                                                var nearestDistance = Float.MAX_VALUE
+                                                lane.dots.forEach { dot ->
+                                                    val center = Offset(
+                                                        dot.x,
+                                                        centerY + stackOffset(dot.track) * stackSpacingPx,
+                                                    )
+                                                    val distance = distanceSquared(tap, center)
+                                                    if (distance < nearestDistance) {
+                                                        nearestDot = dot
+                                                        nearestDistance = distance
+                                                    }
+                                                }
+                                                if (nearestDistance < hitRadiusSquared) {
+                                                    nearestDot?.let { onEpisodeClick(it.episode) }
+                                                }
+                                            }
+                                        },
+                                ) {
+                                    val left = PLOT_HORIZONTAL_PADDING.toPx()
+                                    val right = size.width - left
+                                    val plotWidth = right - left
+                                    val firstX = left + timelineX(lane.unit.startYear, scale) * plotWidth
+                                    val lastX = left + timelineX(lane.unit.endYear, scale) * plotWidth
+                                    val spanLeft = minOf(firstX, lastX)
+                                    val spanWidth = maxOf(8.dp.toPx(), abs(lastX - firstX))
+                                    val spanHeight = (size.height - 10.dp.toPx()).coerceAtLeast(1.dp.toPx())
+
+                                    drawRoundRect(
+                                        color = unitColor(lane.unit.number).copy(alpha = 0.18f),
+                                        topLeft = Offset(spanLeft, (size.height - spanHeight) / 2f),
+                                        size = Size(spanWidth, spanHeight),
+                                        cornerRadius = CornerRadius(13.dp.toPx()),
+                                    )
+                                    drawLine(
+                                        color = Color(0xFF656A75).copy(alpha = 0.7f),
+                                        start = Offset(left, size.height / 2f),
+                                        end = Offset(right, size.height / 2f),
+                                        strokeWidth = 1.dp.toPx(),
+                                    )
+                                    targetEpisode?.let { nextStop ->
+                                        val markerX = left + timelineX(nextStop.approxYear, scale) * plotWidth
+                                        drawLine(
+                                            color = Apricot.copy(alpha = 0.42f),
+                                            start = Offset(markerX, 2.dp.toPx()),
+                                            end = Offset(markerX, size.height - 2.dp.toPx()),
+                                            strokeWidth = 1.dp.toPx(),
+                                        )
+                                    }
+
+                                    lane.dots.forEach { dot ->
+                                        val dotY = size.height / 2f +
+                                            stackOffset(dot.track) * DOT_STACK_SPACING.toPx()
+                                        val played = progress[dot.episode.id]?.played == true
+                                        val isCurrent = currentEpisodeId == dot.episode.id
+                                        val color = unitColor(lane.unit.number)
+                                        if (isCurrent) {
+                                            drawCircle(
+                                                color = Apricot.copy(alpha = 0.2f),
+                                                radius = 13.dp.toPx() * pulse,
+                                                center = Offset(dot.x, dotY),
+                                            )
+                                        }
+                                        val radius = if (isCurrent) 6.dp.toPx() else DOT_RADIUS.toPx()
+                                        if (played) {
+                                            drawCircle(color, radius, Offset(dot.x, dotY))
+                                        } else {
+                                            drawCircle(
+                                                color.copy(alpha = 0.9f),
+                                                radius,
+                                                Offset(dot.x, dotY),
+                                                style = Stroke(width = 1.5.dp.toPx()),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
-        Text("Swipe sideways to wander through time · tap a story to learn more", modifier = Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall, color = MutedCream)
+
+        Text(
+            "Tap a story for details · filled dots are played · the pulse marks what’s playing · the line marks your next stop",
+            modifier = Modifier.padding(horizontal = 20.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MutedCream,
+        )
     }
 }
 
-private fun timelineDots(episodes: List<Episode>, minYear: Int, maxYear: Int, width: Float, height: Float): List<TimelineDot> {
-    val left = 38.dp.value * (width / 1500f)
-    val right = width - 36.dp.value * (width / 1500f)
-    val baseline = height * 0.56f
-    val plotWidth = right - left
-    return episodes.map { episode ->
-        val x = left + timelineX(episode.approxYear, minYear, maxYear) * plotWidth
-        val row = (episode.id.hashCode().and(Int.MAX_VALUE) % 5)
-        val y = baseline + (row - 2) * 17.dp.value * (height / 520f)
-        TimelineDot(episode, x, y)
+private fun timelineDots(
+    episodes: List<Episode>,
+    scale: com.eetimeline.core.TimelineScale,
+    width: Float,
+    horizontalPadding: Float,
+    minimumSpacing: Float,
+): List<TimelineDot> {
+    val orderedEpisodes = episodes.sortedBy { timelineX(it.approxYear, scale) }
+    val trackLastX = FloatArray(orderedEpisodes.size)
+    var trackCount = 0
+    val dots = ArrayList<TimelineDot>(orderedEpisodes.size)
+    val plotWidth = width - horizontalPadding * 2
+
+    for (episode in orderedEpisodes) {
+        val x = horizontalPadding + timelineX(episode.approxYear, scale) * plotWidth
+        var track = 0
+        while (track < trackCount && x - trackLastX[track] < minimumSpacing) {
+            track++
+        }
+        if (track == trackCount) trackCount++
+        trackLastX[track] = x
+        dots.add(TimelineDot(episode, x, track))
     }
+    return dots
+}
+
+private fun laneHeight(trackCount: Int): Dp {
+    val outerStack = trackCount / 2
+    return (56 + outerStack * DOT_STACK_SPACING.value * 2).dp
+}
+
+private fun laneCenterY(lane: TimelineLane, density: androidx.compose.ui.unit.Density): Float =
+    with(density) { lane.height.toPx() / 2f }
+
+private fun stackOffset(track: Int): Int = when {
+    track == 0 -> 0
+    track % 2 == 1 -> -(track + 1) / 2
+    else -> track / 2
+}
+
+private fun adaptiveTimelineTicks(
+    scale: com.eetimeline.core.TimelineScale,
+    plotWidth: Float,
+    minimumSpacing: Float,
+): List<Int> {
+    val anchors = intArrayOf(
+        scale.earliestYear,
+        1_200,
+        1_450,
+        1_750,
+        1_900,
+        scale.presentYear,
+    )
+    val niceSteps = intArrayOf(1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1_000, 2_000, 5_000)
+    val candidates = ArrayList<Int>(anchors.size + 16)
+    for (anchor in anchors) candidates.add(anchor)
+
+    for (segment in 0 until anchors.lastIndex) {
+        val start = anchors[segment]
+        val end = anchors[segment + 1]
+        val segmentWidth = (timelineX(end, scale) - timelineX(start, scale)) * plotWidth
+        if (segmentWidth < minimumSpacing * 1.4f) continue
+        val targetYearStep = ((end - start) * minimumSpacing / segmentWidth).toInt().coerceAtLeast(1)
+        val step = niceSteps.firstOrNull { it >= targetYearStep } ?: niceSteps.last()
+        var year = ceil(start.toDouble() / step).toInt() * step
+        while (year < end) {
+            candidates.add(year)
+            year += step
+        }
+    }
+
+    val selected = ArrayList<Int>()
+    for (year in candidates.distinct().sorted()) {
+        val x = timelineX(year, scale) * plotWidth
+        if (selected.none { abs(timelineX(it, scale) * plotWidth - x) < minimumSpacing }) {
+            selected.add(year)
+        }
+    }
+    return selected
+}
+
+private fun yearLabel(year: Int): String = if (year < 0) "${-year} BCE" else year.toString()
+private fun timelineEraIcon(unitNumber: Int): ImageVector = when (unitNumber) {
+    1 -> Icons.Filled.Agriculture
+    2 -> Icons.Filled.AccountBalance
+    3 -> Icons.Filled.Castle
+    4 -> Icons.Filled.Sailing
+    5 -> Icons.Filled.Lightbulb
+    6 -> Icons.Filled.Factory
+    7 -> Icons.Filled.Train
+    8 -> Icons.Filled.Science
+    9 -> Icons.Filled.RocketLaunch
+    else -> Icons.Filled.MenuBook
 }
 
 private fun distanceSquared(first: Offset, second: Offset): Float {
@@ -187,4 +510,3 @@ private fun distanceSquared(first: Offset, second: Offset): Float {
     val dy = first.y - second.y
     return dx * dx + dy * dy
 }
-

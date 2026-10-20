@@ -20,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -44,28 +45,29 @@ fun UnitDetailScreen(
     onBack: () -> Unit,
     onEpisodeClick: (Episode) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item {
-            TopAppBar(
-                title = { Text("Unit ${unit.number}", color = unitColor(unit.number)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
-                },
-            )
-        }
-        item {
-            Column {
-                Text(unit.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(5.dp))
-                Text(unit.period, style = MaterialTheme.typography.titleMedium, color = unitColor(unit.number))
-                Spacer(Modifier.height(12.dp))
-                Text(unit.summary, style = MaterialTheme.typography.bodyLarge, color = MutedCream)
+    Column(Modifier.fillMaxSize()) {
+        TopAppBar(
+            modifier = Modifier.fillMaxWidth(),
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+            title = { Text("Unit ${unit.number}", color = unitColor(unit.number)) },
+            navigationIcon = {
+                IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+            },
+        )
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Column {
+                    Text(unit.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(5.dp))
+                    Text(unit.period, style = MaterialTheme.typography.titleMedium, color = unitColor(unit.number))
+                    Spacer(Modifier.height(12.dp))
+                    Text(unit.summary, style = MaterialTheme.typography.bodyLarge, color = MutedCream)
+                }
             }
-        }
         items(unit.topics, key = { it.id }) { topic ->
             Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = SurfaceRaised)) {
                 Column(Modifier.fillMaxWidth().padding(18.dp)) {
@@ -92,6 +94,8 @@ fun UnitDetailScreen(
                                         isPlayed = progress[id]?.played == true,
                                         isCurrent = playback.currentEpisodeId == id,
                                         onClick = { onEpisodeClick(episode) },
+                                        positionMs = progress[id]?.positionMs ?: 0L,
+                                        downloaded = progress[id]?.downloaded == true,
                                         downloadInProgress = progress[id]?.downloadInProgress == true,
                                         downloadProgressPercent = progress[id]?.downloadProgressPercent,
                                         downloadFailed = progress[id]?.downloadFailed == true,
@@ -106,6 +110,7 @@ fun UnitDetailScreen(
                     }
                 }
             }
+        }
         }
     }
 }

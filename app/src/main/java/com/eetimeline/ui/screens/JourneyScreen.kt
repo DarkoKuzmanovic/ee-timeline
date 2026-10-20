@@ -1,6 +1,8 @@
 package com.eetimeline.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,7 +42,10 @@ import com.eetimeline.ui.components.EpisodeRow
 import com.eetimeline.ui.theme.Apricot
 import com.eetimeline.ui.theme.MutedCream
 import com.eetimeline.ui.theme.Mint
+import com.eetimeline.ui.theme.unitColor
 import com.eetimeline.ui.theme.SurfaceRaised
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
 @Composable
@@ -56,6 +62,11 @@ fun JourneyScreen(
     val playedCount = ordered.count { progress[it]?.played == true }
     val ratio = if (ordered.isEmpty()) 0f else playedCount.toFloat() / ordered.size
     val animatedRatio by animateFloatAsState(ratio, label = "journey-progress")
+    val journeyCounter = when {
+        ordered.isEmpty() -> "No stories yet"
+        playedCount == ordered.size -> "${ordered.size} stories finished"
+        else -> "Story ${playedCount + 1} of ${ordered.size} · $playedCount finished"
+    }
     val remainingHours = ordered.sumOf { id ->
         if (progress[id]?.played == true) 0L else (curriculum.episodes[id]?.durationSec ?: 0).toLong()
     } / 3600f
@@ -85,7 +96,7 @@ fun JourneyScreen(
                         Column(Modifier.weight(1f)) {
                             Text("YOUR JOURNEY", style = MaterialTheme.typography.labelMedium, color = Mint, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(5.dp))
-                            Text("$playedCount of ${ordered.size} stories", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(journeyCounter, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         }
                         Text("${(ratio * 100).roundToInt()}%", style = MaterialTheme.typography.headlineSmall, color = Apricot, fontWeight = FontWeight.Bold)
                     }
@@ -95,6 +106,52 @@ fun JourneyScreen(
                         color = Apricot,
                         trackColor = MaterialTheme.colorScheme.surface,
                     )
+                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("ERA PASSPORT", style = MaterialTheme.typography.labelSmall, color = MutedCream, fontWeight = FontWeight.Bold)
+                            val completedEras = curriculum.units.count { era ->
+                                var episodeCount = 0
+                                var playedEpisodes = 0
+                                era.topics.forEach { topic ->
+                                    topic.groups.forEach { group ->
+                                        group.episodeIds.forEach { id ->
+                                            episodeCount++
+                                            if (progress[id]?.played == true) playedEpisodes++
+                                        }
+                                    }
+                                }
+                                episodeCount > 0 && playedEpisodes == episodeCount
+                            }
+                            Text(
+                                "$completedEras/${curriculum.units.size} stamped",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MutedCream,
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            curriculum.units.forEach { era ->
+                                var episodeCount = 0
+                                var playedEpisodes = 0
+                                era.topics.forEach { topic ->
+                                    topic.groups.forEach { group ->
+                                        group.episodeIds.forEach { id ->
+                                            episodeCount++
+                                            if (progress[id]?.played == true) playedEpisodes++
+                                        }
+                                    }
+                                }
+                                EraPassportStamp(era.number, playedEpisodes, episodeCount)
+                            }
+                        }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("About ${remainingHours.roundToInt()} hours left", style = MaterialTheme.typography.bodyMedium, color = MutedCream)
                         Text("·", color = MutedCream)
@@ -153,11 +210,38 @@ fun JourneyScreen(
                     isPlayed = progress[episode.id]?.played == true,
                     isCurrent = playback.currentEpisodeId == episode.id,
                     onClick = { onEpisodeClick(episode) },
+                    positionMs = progress[episode.id]?.positionMs ?: 0L,
+                    downloaded = progress[episode.id]?.downloaded == true,
                     downloadInProgress = progress[episode.id]?.downloadInProgress == true,
                     downloadProgressPercent = progress[episode.id]?.downloadProgressPercent,
                     downloadFailed = progress[episode.id]?.downloadFailed == true,
                 )
             }
         }
+    }
+}
+@Composable
+private fun EraPassportStamp(unitNumber: Int, played: Int, total: Int) {
+    val fraction = if (total == 0) 0f else played.toFloat() / total
+    val color = unitColor(unitNumber)
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(if (fraction >= 1f) color.copy(alpha = 0.2f) else trackColor.copy(alpha = 0.7f))
+            drawArc(
+                color = if (fraction > 0f) color else MutedCream.copy(alpha = 0.3f),
+                startAngle = -90f,
+                sweepAngle = 360f * fraction.coerceIn(0f, 1f),
+                useCenter = false,
+                style = Stroke(width = 2.dp.toPx()),
+            )
+        }
+        Text(
+            unitNumber.toString(),
+            style = MaterialTheme.typography.labelSmall,
+            fontSize = 10.sp,
+            color = if (fraction > 0f) color else MutedCream,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }

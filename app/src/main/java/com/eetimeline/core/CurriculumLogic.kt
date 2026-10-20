@@ -1,7 +1,12 @@
 package com.eetimeline.core
 
-private const val PRE_1200_FRACTION = 0.08
-private const val MODERN_ERA_START = 1200
+private const val FIRST_TIMELINE_YEAR = -8_000
+private const val FIRST_ERA_BOUNDARY = 1_200
+private const val SECOND_ERA_BOUNDARY = 1_450
+private const val THIRD_ERA_BOUNDARY = 1_750
+private const val FOURTH_ERA_BOUNDARY = 1_900
+private const val TIMELINE_SEGMENT_COUNT = 5
+private const val MIN_TIMELINE_SEGMENT_WIDTH = 0.06f
 private const val PLAYED_THRESHOLD_MS = 30_000L
 private const val SLEEP_FADE_DURATION_MS = 30_000L
 
@@ -51,29 +56,82 @@ fun Curriculum.nextUnplayedAfter(currentId: String, playedIds: Set<String>): Str
     return null
 }
 
-/** Maps [year] to [0, 1], compressing years before 1200 into the first 8% when bounds cross 1200. */
-fun timelineX(year: Int, minYear: Int, maxYear: Int): Float {
-    val low = minOf(minYear, maxYear)
-    val high = maxOf(minYear, maxYear)
-    if (low == high) return 0.5f
-
-    val clampedYear = year.coerceIn(low, high).toDouble()
-    val lowYear = low.toDouble()
-    val highYear = high.toDouble()
-    val epoch = MODERN_ERA_START.toDouble()
-
-    val x = if (low < MODERN_ERA_START && high > MODERN_ERA_START) {
-        if (clampedYear < epoch) {
-            PRE_1200_FRACTION * ((clampedYear - lowYear) / (epoch - lowYear))
-        } else {
-            PRE_1200_FRACTION +
-                (1.0 - PRE_1200_FRACTION) * ((clampedYear - epoch) / (highYear - epoch))
+/**
+ * Piecewise-linear timeline coordinates weighted by the curriculum's episode density.
+ * Every era segment receives at least 6% of the width; the rest is shared by episode count.
+ */
+class TimelineScale private constructor(
+    val earliestYear: Int,
+    val presentYear: Int,
+    private val knotYears: IntArray,
+    private val knotPositions: FloatArray,
+) {
+    internal fun position(year: Int): Float {
+        val boundedYear = year.coerceIn(earliestYear, presentYear)
+        for (segment in 0 until knotYears.lastIndex) {
+            val segmentStart = knotYears[segment]
+            val segmentEnd = knotYears[segment + 1]
+            if (boundedYear <= segmentEnd) {
+                val fraction = (boundedYear - segmentStart).toFloat() / (segmentEnd - segmentStart)
+                return knotPositions[segment] +
+                    fraction * (knotPositions[segment + 1] - knotPositions[segment])
+            }
         }
-    } else {
-        (clampedYear - lowYear) / (highYear - lowYear)
+        return 1f
     }
-    return x.toFloat()
+
+    companion object {
+        internal fun create(
+            earliestYear: Int,
+            presentYear: Int,
+            knotYears: IntArray,
+            knotPositions: FloatArray,
+        ) = TimelineScale(earliestYear, presentYear, knotYears, knotPositions)
+    }
 }
+
+/** Builds a density-balanced scale from episode years and the current year. */
+fun timelineScale(episodeYears: List<Int>, presentYear: Int): TimelineScale {
+    val earliestYear = minOf(FIRST_TIMELINE_YEAR, episodeYears.minOrNull() ?: FIRST_TIMELINE_YEAR)
+    val boundedPresentYear = maxOf(FOURTH_ERA_BOUNDARY + 1, presentYear)
+    val knotYears = intArrayOf(
+        earliestYear,
+        FIRST_ERA_BOUNDARY,
+        SECOND_ERA_BOUNDARY,
+        THIRD_ERA_BOUNDARY,
+        FOURTH_ERA_BOUNDARY,
+        boundedPresentYear,
+    )
+    val episodeCounts = IntArray(TIMELINE_SEGMENT_COUNT)
+    for (year in episodeYears) {
+        val segment = when {
+            year < FIRST_ERA_BOUNDARY -> 0
+            year < SECOND_ERA_BOUNDARY -> 1
+            year < THIRD_ERA_BOUNDARY -> 2
+            year < FOURTH_ERA_BOUNDARY -> 3
+            else -> 4
+        }
+        episodeCounts[segment]++
+    }
+
+    val totalEpisodes = episodeCounts.sum()
+    val distributableWidth = 1f - MIN_TIMELINE_SEGMENT_WIDTH * TIMELINE_SEGMENT_COUNT
+    val knotPositions = FloatArray(knotYears.size)
+    for (segment in episodeCounts.indices) {
+        val proportionalWidth = if (totalEpisodes == 0) {
+            distributableWidth / TIMELINE_SEGMENT_COUNT
+        } else {
+            distributableWidth * episodeCounts[segment] / totalEpisodes
+        }
+        knotPositions[segment + 1] =
+            knotPositions[segment] + MIN_TIMELINE_SEGMENT_WIDTH + proportionalWidth
+    }
+    knotPositions[knotPositions.lastIndex] = 1f
+    return TimelineScale.create(earliestYear, boundedPresentYear, knotYears, knotPositions)
+}
+
+/** Maps [year] to a clamped [0, 1] coordinate on [scale]. */
+fun timelineX(year: Int, scale: TimelineScale): Float = scale.position(year)
 
 /** True once playback is within 30 seconds of the end of a positive-duration episode. */
 fun isPlayedByPosition(durationMs: Long, positionMs: Long): Boolean =
