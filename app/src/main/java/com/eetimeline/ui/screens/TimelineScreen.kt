@@ -25,15 +25,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Agriculture
 import androidx.compose.material.icons.filled.Castle
 import androidx.compose.material.icons.filled.Factory
-import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Sailing
-import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -125,6 +125,8 @@ fun TimelineScreen(
     var viewportWidthPx by remember { mutableStateOf(0) }
     val density = LocalDensity.current
     val plotPaddingPx = with(density) { PLOT_HORIZONTAL_PADDING.toPx() }
+    val jitterWindowPx = with(density) { 120.dp.toPx() }
+
     val dotSpacingPx = with(density) { (DOT_RADIUS * 2 + 2.dp).toPx() }
     val laneLayouts = remember(laneSources, scale, canvasPixelSize.width, density) {
         laneSources.map { (unit, episodes) ->
@@ -137,6 +139,7 @@ fun TimelineScreen(
                     width = canvasPixelSize.width.toFloat(),
                     horizontalPadding = plotPaddingPx,
                     minimumSpacing = dotSpacingPx,
+                    jitterWindow = jitterWindowPx,
                 )
             }
             val trackCount = dots.maxOfOrNull { it.track + 1 } ?: 1
@@ -416,22 +419,57 @@ private fun timelineDots(
     width: Float,
     horizontalPadding: Float,
     minimumSpacing: Float,
+    jitterWindow: Float,
 ): List<TimelineDot> {
     val orderedEpisodes = episodes.sortedBy { timelineX(it.approxYear, scale) }
+    val plotWidth = width - horizontalPadding * 2
+    val baseXs = FloatArray(orderedEpisodes.size) { index ->
+        horizontalPadding + timelineX(orderedEpisodes[index].approxYear, scale) * plotWidth
+    }
+    val spreadXs = FloatArray(orderedEpisodes.size)
+    var clusterStart = 0
+    while (clusterStart < orderedEpisodes.size) {
+        var clusterEnd = clusterStart + 1
+        while (
+            clusterEnd < orderedEpisodes.size &&
+            baseXs[clusterEnd] - baseXs[clusterEnd - 1] < minimumSpacing * 1.5f &&
+            baseXs[clusterEnd] - baseXs[clusterStart] < jitterWindow
+        ) {
+            clusterEnd++
+        }
+        val clusterSize = clusterEnd - clusterStart
+        if (clusterSize == 1) {
+            spreadXs[clusterStart] = baseXs[clusterStart]
+        } else {
+            val clusterFirstX = baseXs[clusterStart]
+            val clusterLastX = baseXs[clusterEnd - 1]
+            val actualSpread = clusterLastX - clusterFirstX
+            val desiredSpread = minOf(jitterWindow, minimumSpacing * (clusterSize - 1))
+            val spread = maxOf(actualSpread, desiredSpread).coerceAtMost(plotWidth)
+            val center = (clusterFirstX + clusterLastX) / 2f
+            val spreadStart = (center - spread / 2f)
+                .coerceIn(horizontalPadding, width - horizontalPadding - spread)
+            val spreadIntervals = (clusterSize - 1).toFloat()
+            for (index in clusterStart until clusterEnd) {
+                spreadXs[index] = spreadStart + spread * (index - clusterStart) / spreadIntervals
+            }
+        }
+        clusterStart = clusterEnd
+    }
+
+    val orderedIndexes = orderedEpisodes.indices.sortedBy { spreadXs[it] }
     val trackLastX = FloatArray(orderedEpisodes.size)
     var trackCount = 0
     val dots = ArrayList<TimelineDot>(orderedEpisodes.size)
-    val plotWidth = width - horizontalPadding * 2
-
-    for (episode in orderedEpisodes) {
-        val x = horizontalPadding + timelineX(episode.approxYear, scale) * plotWidth
+    for (index in orderedIndexes) {
+        val x = spreadXs[index]
         var track = 0
         while (track < trackCount && x - trackLastX[track] < minimumSpacing) {
             track++
         }
         if (track == trackCount) trackCount++
         trackLastX[track] = x
-        dots.add(TimelineDot(episode, x, track))
+        dots.add(TimelineDot(orderedEpisodes[index], x, track))
     }
     return dots
 }
@@ -457,6 +495,9 @@ private fun adaptiveTimelineTicks(
 ): List<Int> {
     val anchors = intArrayOf(
         scale.earliestYear,
+        -3_000,
+        1,
+        1_000,
         1_200,
         1_450,
         1_750,
@@ -476,7 +517,7 @@ private fun adaptiveTimelineTicks(
         val step = niceSteps.firstOrNull { it >= targetYearStep } ?: niceSteps.last()
         var year = ceil(start.toDouble() / step).toInt() * step
         while (year < end) {
-            candidates.add(year)
+            if (year != 0) candidates.add(year)
             year += step
         }
     }
@@ -491,17 +532,23 @@ private fun adaptiveTimelineTicks(
     return selected
 }
 
-private fun yearLabel(year: Int): String = if (year < 0) "${-year} BCE" else year.toString()
+private fun yearLabel(year: Int): String = when {
+    year < 0 -> "${-year} BCE"
+    year == 0 -> "1 BCE"
+    year == 1 -> "1 CE"
+    else -> year.toString()
+}
+
 private fun timelineEraIcon(unitNumber: Int): ImageVector = when (unitNumber) {
-    1 -> Icons.Filled.Agriculture
-    2 -> Icons.Filled.AccountBalance
+    1 -> Icons.Filled.AccountBalance
+    2 -> Icons.Filled.Route
     3 -> Icons.Filled.Castle
     4 -> Icons.Filled.Sailing
-    5 -> Icons.Filled.Lightbulb
+    5 -> Icons.Filled.Flag
     6 -> Icons.Filled.Factory
-    7 -> Icons.Filled.Train
-    8 -> Icons.Filled.Science
-    9 -> Icons.Filled.RocketLaunch
+    7 -> Icons.Filled.Shield
+    8 -> Icons.Filled.RocketLaunch
+    9 -> Icons.Filled.Public
     else -> Icons.Filled.MenuBook
 }
 

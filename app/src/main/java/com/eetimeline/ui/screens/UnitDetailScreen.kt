@@ -30,6 +30,7 @@ import com.eetimeline.core.CurriculumUnit
 import com.eetimeline.core.Episode
 import com.eetimeline.ui.EpisodeProgress
 import com.eetimeline.ui.PlaybackUiState
+import com.eetimeline.ui.components.MINI_PLAYER_HEIGHT
 import com.eetimeline.ui.components.EpisodeRow
 import com.eetimeline.ui.theme.MutedCream
 import com.eetimeline.ui.theme.SurfaceRaised
@@ -56,7 +57,7 @@ fun UnitDetailScreen(
         )
         LazyColumn(
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp + MINI_PLAYER_HEIGHT),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {

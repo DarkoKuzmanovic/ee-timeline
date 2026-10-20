@@ -38,6 +38,7 @@ import com.eetimeline.core.Episode
 import com.eetimeline.core.orderedEpisodeIds
 import com.eetimeline.ui.EpisodeProgress
 import com.eetimeline.ui.PlaybackUiState
+import com.eetimeline.ui.components.MINI_PLAYER_HEIGHT
 import com.eetimeline.ui.components.EpisodeRow
 import com.eetimeline.ui.theme.Apricot
 import com.eetimeline.ui.theme.MutedCream
@@ -76,7 +77,7 @@ fun JourneyScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp + MINI_PLAYER_HEIGHT),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {

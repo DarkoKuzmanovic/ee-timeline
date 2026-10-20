@@ -68,7 +68,7 @@ fun EpisodeRow(
         }
         observedPlayed = isPlayed
     }
-    val partialProgress = if (isPlayed || positionMs <= 0L || episode.durationSec <= 0) {
+    val partialProgress = if (positionMs <= 0L || episode.durationSec <= 0) {
         0f
     } else {
         (positionMs.toFloat() / (episode.durationSec.toLong() * 1000f)).coerceIn(0f, 0.99f)
@@ -115,7 +115,7 @@ fun EpisodeRow(
                 style = MaterialTheme.typography.labelMedium,
                 color = if (downloadInProgress) Apricot else MutedCream,
             )
-            if (partialProgress > 0f) {
+            if (!isPlayed && partialProgress > 0f) {
                 Spacer(Modifier.height(5.dp))
                 LinearProgressIndicator(
                     progress = { partialProgress },

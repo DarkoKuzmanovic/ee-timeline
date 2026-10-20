@@ -1,12 +1,15 @@
 package com.eetimeline.core
 
 private const val FIRST_TIMELINE_YEAR = -8_000
+private const val PREHISTORY_BOUNDARY = -3_000
+private const val COMMON_ERA_START = 1
+private const val FIRST_MILLENNIUM_BOUNDARY = 1_000
 private const val FIRST_ERA_BOUNDARY = 1_200
 private const val SECOND_ERA_BOUNDARY = 1_450
 private const val THIRD_ERA_BOUNDARY = 1_750
 private const val FOURTH_ERA_BOUNDARY = 1_900
-private const val TIMELINE_SEGMENT_COUNT = 5
-private const val MIN_TIMELINE_SEGMENT_WIDTH = 0.06f
+private const val TIMELINE_SEGMENT_COUNT = 8
+private const val MIN_TIMELINE_SEGMENT_WIDTH = 0.07f
 private const val PLAYED_THRESHOLD_MS = 30_000L
 private const val SLEEP_FADE_DURATION_MS = 30_000L
 
@@ -57,8 +60,7 @@ fun Curriculum.nextUnplayedAfter(currentId: String, playedIds: Set<String>): Str
 }
 
 /**
- * Piecewise-linear timeline coordinates weighted by the curriculum's episode density.
- * Every era segment receives at least 6% of the width; the rest is shared by episode count.
+ * Every timeline interval gets at least 7% of the width; the remainder is shared by episode count.
  */
 class TimelineScale private constructor(
     val earliestYear: Int,
@@ -96,6 +98,9 @@ fun timelineScale(episodeYears: List<Int>, presentYear: Int): TimelineScale {
     val boundedPresentYear = maxOf(FOURTH_ERA_BOUNDARY + 1, presentYear)
     val knotYears = intArrayOf(
         earliestYear,
+        PREHISTORY_BOUNDARY,
+        COMMON_ERA_START,
+        FIRST_MILLENNIUM_BOUNDARY,
         FIRST_ERA_BOUNDARY,
         SECOND_ERA_BOUNDARY,
         THIRD_ERA_BOUNDARY,
@@ -105,11 +110,14 @@ fun timelineScale(episodeYears: List<Int>, presentYear: Int): TimelineScale {
     val episodeCounts = IntArray(TIMELINE_SEGMENT_COUNT)
     for (year in episodeYears) {
         val segment = when {
-            year < FIRST_ERA_BOUNDARY -> 0
-            year < SECOND_ERA_BOUNDARY -> 1
-            year < THIRD_ERA_BOUNDARY -> 2
-            year < FOURTH_ERA_BOUNDARY -> 3
-            else -> 4
+            year < PREHISTORY_BOUNDARY -> 0
+            year < COMMON_ERA_START -> 1
+            year < FIRST_MILLENNIUM_BOUNDARY -> 2
+            year < FIRST_ERA_BOUNDARY -> 3
+            year < SECOND_ERA_BOUNDARY -> 4
+            year < THIRD_ERA_BOUNDARY -> 5
+            year < FOURTH_ERA_BOUNDARY -> 6
+            else -> 7
         }
         episodeCounts[segment]++
     }

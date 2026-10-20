@@ -79,39 +79,40 @@ class CurriculumLogicTest {
     @Test
     fun densityBalancedTimelinePlacesKnotsByEpisodeCounts() {
         val episodeYears = listOf(
-            -8_000, -1_000, 1_199, 1_199,
+            -8_000, -4_000, -1_000, 1, 500, 1_000, 1_199, 1_199,
             1_200, 1_449,
             1_450, 1_600, 1_749,
             1_750,
             1_900, 1_950, 2_000, 2_025, 2_025,
         )
+        val knotYears = listOf(-8_000, -3_000, 1, 1_000, 1_200, 1_450, 1_750, 1_900, 2_025)
+        val segmentCounts = intArrayOf(2, 1, 2, 3, 2, 3, 1, 5)
         val scale = timelineScale(episodeYears, 2_025)
-        val firstSegment = 0.06f + 0.7f * 4f / 15f
-        val secondKnot = firstSegment + 0.06f + 0.7f * 2f / 15f
-        val thirdKnot = secondKnot + 0.06f + 0.7f * 3f / 15f
-        val fourthKnot = thirdKnot + 0.06f + 0.7f / 15f
+        val distributableWidth = 1f - 0.07f * segmentCounts.size
+        var expectedPosition = 0f
 
-        assertEquals(0f, timelineX(-8_000, scale), 0.0001f)
-        assertEquals(firstSegment, timelineX(1_200, scale), 0.0001f)
-        assertEquals(secondKnot, timelineX(1_450, scale), 0.0001f)
-        assertEquals(thirdKnot, timelineX(1_750, scale), 0.0001f)
-        assertEquals(fourthKnot, timelineX(1_900, scale), 0.0001f)
-        assertEquals(1f, timelineX(2_025, scale), 0.0001f)
+        knotYears.forEachIndexed { index, year ->
+            assertEquals(expectedPosition, timelineX(year, scale), 0.0001f)
+            if (index < segmentCounts.size) {
+                expectedPosition += 0.07f + distributableWidth * segmentCounts[index] / episodeYears.size
+            }
+        }
     }
 
     @Test
     fun densityBalancedTimelineHasMinimumWidthAndContinuousKnotBoundaries() {
         val scale = timelineScale(listOf(-8_000, 2_025), 2_025)
-        val knotYears = listOf(-8_000, 1_200, 1_450, 1_750, 1_900, 2_025)
+        val knotYears = listOf(-8_000, -3_000, 1, 1_000, 1_200, 1_450, 1_750, 1_900, 2_025)
         val knotPositions = knotYears.map { timelineX(it, scale) }
 
         for (index in 0 until knotPositions.lastIndex) {
-            assertTrue(knotPositions[index + 1] - knotPositions[index] >= 0.0599f)
+            assertTrue(knotPositions[index + 1] - knotPositions[index] >= 0.0699f)
         }
         for (year in knotYears.drop(1).dropLast(1)) {
             assertTrue(timelineX(year - 1, scale) < timelineX(year, scale))
             assertTrue(timelineX(year, scale) < timelineX(year + 1, scale))
         }
+        assertTrue(timelineX(1_200, scale) - timelineX(1_000, scale) >= 0.0699f)
     }
 
     @Test

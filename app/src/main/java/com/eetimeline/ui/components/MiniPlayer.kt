@@ -29,6 +29,8 @@ import com.eetimeline.ui.PlaybackUiState
 import com.eetimeline.ui.theme.Apricot
 import com.eetimeline.ui.theme.MutedCream
 
+internal val MINI_PLAYER_HEIGHT = 67.dp
+
 @Composable
 fun MiniPlayer(
     title: String,
@@ -38,7 +40,7 @@ fun MiniPlayer(
     onPlayPause: () -> Unit,
 ) {
     val fraction = if (playback.durationMs <= 0L) 0f else (playback.positionMs.toFloat() / playback.durationMs).coerceIn(0f, 1f)
-    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().height(MINI_PLAYER_HEIGHT).clickable(onClick = onOpen)) {
         androidx.compose.foundation.layout.Column {
             LinearProgressIndicator(
                 progress = { fraction },

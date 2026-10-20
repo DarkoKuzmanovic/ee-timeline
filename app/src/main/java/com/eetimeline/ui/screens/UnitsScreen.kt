@@ -19,16 +19,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Agriculture
 import androidx.compose.material.icons.filled.Castle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Factory
-import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Sailing
-import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.eetimeline.core.Curriculum
 import com.eetimeline.core.CurriculumUnit
 import com.eetimeline.ui.EpisodeProgress
+import com.eetimeline.ui.components.MINI_PLAYER_HEIGHT
 import com.eetimeline.ui.theme.MutedCream
 import com.eetimeline.ui.theme.SurfaceRaised
 import com.eetimeline.ui.theme.unitColor
@@ -57,7 +58,7 @@ fun UnitsScreen(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp + MINI_PLAYER_HEIGHT),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -143,14 +144,14 @@ private fun UnitCard(
     }
 }
 private fun eraIcon(unitNumber: Int): ImageVector = when (unitNumber) {
-    1 -> Icons.Filled.Agriculture
-    2 -> Icons.Filled.AccountBalance
+    1 -> Icons.Filled.AccountBalance
+    2 -> Icons.Filled.Route
     3 -> Icons.Filled.Castle
     4 -> Icons.Filled.Sailing
-    5 -> Icons.Filled.Lightbulb
+    5 -> Icons.Filled.Flag
     6 -> Icons.Filled.Factory
-    7 -> Icons.Filled.Train
-    8 -> Icons.Filled.Science
-    9 -> Icons.Filled.RocketLaunch
+    7 -> Icons.Filled.Shield
+    8 -> Icons.Filled.RocketLaunch
+    9 -> Icons.Filled.Public
     else -> Icons.Filled.MenuBook
 }
