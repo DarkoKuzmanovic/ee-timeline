@@ -21,3 +21,10 @@ local.properties
 Thumbs.db
 *.swp
 *.swo
+*.apk
+*.aab
+captures/
+.kotlin/
+*.jks
+*.keystore
+keystore.properties
