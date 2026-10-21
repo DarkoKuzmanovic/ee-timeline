@@ -1,60 +1,112 @@
 # EE Timeline
 
-A night-friendly podcast companion for listening to *Everything Everywhere Daily* in AP World History curriculum order. Follow the journey through nine eras, browse episodes on a compressed historical timeline, save progress, download stories for offline listening, plan tonight’s listening, and use bedtime mode with a sleep rewind, voice boost, and silence skipping.
+A night-friendly Android companion for listening to *Everything Everywhere Daily* in AP World History curriculum order—with a journey plan, a zoomable history timeline, and bedtime playback tools.
 
-Era pages pair softly tinted episode-art mosaics with a collapsible unit overview, while the timeline supports horizontal zooming and a draggable overview strip. Display, headline and title styles use Fraunces; its SIL Open Font License 1.1 is bundled at `app/src/main/res/raw/fraunces_ofl.txt`.
+[![build](https://github.com/DarkoKuzmanovic/ee-timeline/actions/workflows/build.yml/badge.svg)](https://github.com/DarkoKuzmanovic/ee-timeline/actions/workflows/build.yml) [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+> **Unofficial, independently made project.** EE Timeline is not affiliated with, endorsed by, or sponsored by *Everything Everywhere Daily*, its host Gary Arndt, Everything Everywhere, or the College Board. AP® and Advanced Placement® are College Board trademarks; the College Board does not endorse this project.
 
-## Build and install
-
-Requires JDK 17+ and Android SDK platform 37 or newer. Build a debug APK with:
-
-```sh
-./gradlew assembleDebug
-```
-
-Install on a connected device with:
-
-```sh
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
+Follow the [Everything Everywhere Daily podcast](https://everything-everywhere.com/) and its [public RSS feed](https://feeds.megaphone.fm/ADV3162807280), organized around the [Everything Everywhere AP World History curriculum](https://everything-everywhere.com/everything-everywhere-ap-world-history-curriculum/).
 
 ## Screenshots
 
-- [Journey](docs/screenshots/journey.png)
-- [Timeline](docs/screenshots/timeline.png)
-- [Timeline — modern era](docs/screenshots/timeline-modern.png)
-- [Units](docs/screenshots/units.png)
-- [Timeline — zoomed](docs/screenshots/timeline-zoomed.png)
-- [Unit detail](docs/screenshots/unit-detail.png)
-- [Episode sheet](docs/screenshots/episode-sheet.png)
-- [Now Playing with sleep timer](docs/screenshots/now-playing.png)
-- [Now Playing — warm artwork palette](docs/screenshots/now-playing-era-1.png)
-- [Now Playing — blue artwork palette](docs/screenshots/now-playing-era-2.png)
-- [Mini player](docs/screenshots/mini-player.png)
-- [Journey widget picker preview](docs/screenshots/widget-picker-preview.png)
-- [Continue journey Quick Settings tile](docs/screenshots/quick-settings-tile.png)
+<table>
+  <tr>
+    <td><img src="docs/screenshots/journey.png" width="240" alt="Journey screen" /></td>
+    <td><img src="docs/screenshots/now-playing-era-1.png" width="240" alt="Now Playing screen with era artwork" /></td>
+    <td><img src="docs/screenshots/bedtime-player.png" width="240" alt="Bedtime player" /></td>
+    <td><img src="docs/screenshots/bedtime-drift-off.png" width="240" alt="Drift-off rewind card" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/timeline.png" width="240" alt="Zoomable episode timeline" /></td>
+    <td><img src="docs/screenshots/unit-detail.png" width="240" alt="Unit detail screen" /></td>
+    <td><img src="docs/screenshots/widget-picker-preview.png" width="240" alt="Journey home-screen widget preview" /></td>
+    <td><img src="docs/screenshots/bedtime-settings.png" width="240" alt="Bedtime settings" /></td>
+  </tr>
+</table>
 
-- [Bedtime player](docs/screenshots/bedtime-player.png)
-- [Bedtime settings](docs/screenshots/bedtime-settings.png)
-- [Bedtime audio settings](docs/screenshots/bedtime-settings-audio.png)
-- [Sleep-session rewind card](docs/screenshots/bedtime-drift-off.png)
-- [Sleep-session spot chooser](docs/screenshots/bedtime-sleep-session-sheet.png)
-- [Planned queue stop](docs/screenshots/bedtime-plan-stop.png)
-- [Bedtime player after shake extension](docs/screenshots/bedtime-player-shake.png)
-- [Drift-off card at the top of Journey](docs/screenshots/bedtime-journey-priority.png)
-- [Finite journey plan previews](docs/screenshots/bedtime-plan-labels.png)
-- [Bedtime player with remembered timer and active plan](docs/screenshots/bedtime-now-playing-start.png)
-- [Settings list above the mini player](docs/screenshots/bedtime-settings-with-mini-player.png)
-- [Bedtime player with active timer](docs/screenshots/bedtime-now-playing-active-timer.png)
+## Features
 
-## Home widget and Quick Settings tile
+- **Journey and Tonight’s plan:** listen in curriculum order, choose a plan for tonight, and keep your place across episodes.
+- **Sleep timer:** fade audio out, then use the drift-off rewind to return to where you fell asleep; shake the device to extend playback.
+- **Bedtime mode:** configure a bedtime window, automatic sleep timer, rewind amount, and shake-to-extend behavior.
+- **Listening controls:** optional voice boost and silence skipping.
+- **Explore history:** zoom and pan across an episode timeline, or use its overview; browse curriculum units, era pages, and their episodes.
+- **Downloads and offline playback:** save episodes on the device and listen without a network connection.
+- **Quick controls:** control the journey from the home-screen widget or Android Quick Settings tile.
 
-Add the **EE Timeline — Journey** widget from the home-screen widget picker to see the current or next story, its era, and journey progress. Tap the play/pause control to toggle the journey without opening the app; tap elsewhere on the widget to open EE Timeline.
+## Privacy and network use
 
-Add the **Continue journey** tile from Android's Quick Settings edit screen for one-tap playback control. The tile shows the current story and toggles the active journey, or starts the next story when no journey is active.
+The app has no sign-in/account feature or analytics SDK. Playback progress, played status, sleep-session details, and preferences are stored in local app databases and preferences.
 
+The app ships with `app/src/main/assets/curriculum.json`: its curriculum order is assembled from the public curriculum page, and episode audio/artwork URLs come from the public podcast feed. It does **not** fetch the RSS feed or curriculum page at runtime. Streaming and downloads request audio from the feed-provided URLs; those requests may redirect to podcast delivery hosts. Cover artwork is fetched from its feed-provided image URL when displayed. Opening an episode’s page link hands off to the device’s browser.
+
+## Build, test, and install
+
+Requirements: Android 8.0 (API 26) or newer, JDK 17 or newer, and Android SDK Platform 37. The Gradle Wrapper downloads the project’s pinned Gradle version.
+
+Build and install a debug APK on a connected device:
+
+```sh
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Run the unit tests with:
+
+```sh
+./gradlew testDebugUnitTest
+```
+
+A release APK can be assembled with `./gradlew assembleRelease`, but this project has no release signing configuration, so the output is unsigned. To sign via Gradle, add a signing configuration that reads your keystore path, alias, and passwords from private Gradle properties in `~/.gradle/gradle.properties` or CI secrets, then run `./gradlew assembleRelease`. Alternatively, use Android's `apksigner` on the unsigned APK:
+
+```sh
+./gradlew assembleRelease
+"$ANDROID_HOME/build-tools/37.0.0/apksigner" sign \
+  --ks /path/to/release.jks \
+  --ks-key-alias "$ANDROID_KEY_ALIAS" \
+  --out app/build/outputs/apk/release/app-release-signed.apk \
+  app/build/outputs/apk/release/app-release-unsigned.apk
+"$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose \
+  app/build/outputs/apk/release/app-release-signed.apk
+```
+
+Provide the keystore and its password securely; never commit the keystore or signing credentials.
 
 ## Curriculum data
 
-`app/src/main/assets/curriculum.json` is generated from the RSS feed and curriculum mapping. To regenerate it, see [`tools/dataset/`](tools/dataset/) for the data tooling and instructions.
+`app/src/main/assets/curriculum.json` is generated by reconciling the public [curriculum page](https://everything-everywhere.com/everything-everywhere-ap-world-history-curriculum/) with the [podcast RSS feed](https://feeds.megaphone.fm/ADV3162807280). Regenerate it with:
+
+```sh
+python3 tools/dataset/build_dataset.py
+```
+
+The generator uses only Python’s standard library. `--verify` additionally probes every audio URL, and `--out PATH` writes the result to another location. Manual corrections for curriculum links and approximate timeline years live in `tools/dataset/build_dataset.py`; update them there when source data needs correction.
+
+## Project layout
+
+```text
+.
+├── app/
+│   └── src/
+│       ├── main/
+│       │   ├── assets/curriculum.json
+│       │   ├── java/com/eetimeline/   # core, playback, UI, and widget
+│       │   └── res/
+│       └── test/
+├── .github/workflows/build.yml        # CI build and unit tests
+├── docs/screenshots/
+├── gradle/                            # version catalog and wrapper
+├── tools/dataset/build_dataset.py
+├── gradlew
+├── LICENSE
+└── README.md
+```
+
+## Third-party notices and license
+
+- The bundled **Fraunces** font is licensed under the SIL Open Font License 1.1; see [`fraunces_ofl.txt`](app/src/main/res/raw/fraunces_ofl.txt).
+- **AndroidX** and **AndroidX Media3** libraries are licensed under Apache License 2.0.
+- Curriculum ordering and episode metadata are derived from the linked public curriculum page and podcast RSS feed. Podcast episodes, audio, artwork, and other third-party content remain the property of their respective owners.
+
+The MIT license in [`LICENSE`](LICENSE) applies to this project’s code only. It does not relicense the Fraunces font, podcast audio or artwork, curriculum material, or other third-party content; those remain subject to their owners’ rights and applicable terms.
